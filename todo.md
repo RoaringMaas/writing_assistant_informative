@@ -46,3 +46,15 @@
 - [x] Auto-save functionality
 - [x] Session state persistence
 - [x] Writing history storage
+
+## New Feature Requests (2026-01-22)
+- [x] Add "Check My Score" button for Hook section with real-time scoring
+- [x] Add "Check My Score" button for Body Paragraph section with real-time scoring
+- [x] Add "Check My Score" button for Conclusion section with real-time scoring
+- [x] Show scaffolding prompts when score is 1 point
+- [x] Allow students to check score repeatedly with updated content
+- [x] Implement Get Help button with context-aware tips for each step
+- [x] Add general writing tips for Topic selection
+- [x] Add general writing tips for Hook writing
+- [x] Add general writing tips for Body paragraphs
+- [x] Add general writing tips for Conclusion writing

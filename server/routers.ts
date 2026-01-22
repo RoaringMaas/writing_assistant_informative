@@ -651,6 +651,77 @@ export const appRouter = router({
         return { score: 2, feedback: "Updated!", suggestions: [] };
       }),
 
+    // Preview score (Check My Score button)
+    previewScore: protectedProcedure
+      .input(z.object({
+        sessionId: z.number(),
+        sectionType: z.enum(["hook", "body", "conclusion"]),
+        content: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const session = await getWritingSession(input.sessionId, ctx.user.id);
+        if (!session) throw new Error("Session not found");
+        
+        let scoring: { score: number; feedback: string; suggestions: string[] };
+        let scaffoldingPrompts: string[] = [];
+        
+        if (input.sectionType === "hook") {
+          scoring = await scoreContent(
+            "Hook",
+            input.content,
+            session.topic || "the topic",
+            "3=effectively grabs attention and introduces topic, 2=present but weak/not entirely relevant, 1=no hook or fails to engage"
+          );
+          
+          if (scoring.score === 1) {
+            scaffoldingPrompts = [
+              "Try starting with a question that makes readers curious!",
+              "Share an amazing fact about your topic.",
+              "Use words like 'Did you know...' or 'Imagine...' to grab attention.",
+            ];
+          }
+        } else if (input.sectionType === "body") {
+          scoring = await scoreContent(
+            "Relevant Information",
+            input.content,
+            session.topic || "the topic",
+            "3=includes multiple accurate, relevant facts/details, 2=some relevant info but limited, 1=lacks relevant information or off-topic"
+          );
+          
+          if (scoring.score === 1) {
+            scaffoldingPrompts = [
+              "Add more facts and details about your topic.",
+              "Think about what makes your topic special or interesting.",
+              "Use words like 'first,' 'next,' and 'also' to connect your ideas.",
+            ];
+          }
+        } else if (input.sectionType === "conclusion") {
+          scoring = await scoreContent(
+            "Conclusion Cohesion",
+            input.content,
+            session.topic || "the topic",
+            "3=effectively wraps up the writing with clear connection to topic, 2=present but weak connection, 1=does not effectively conclude"
+          );
+          
+          if (scoring.score === 1) {
+            scaffoldingPrompts = [
+              "Remind readers what your writing was about.",
+              "End with a strong sentence that wraps up your ideas.",
+              "Try starting with 'In conclusion...' or 'That's why...'",
+            ];
+          }
+        } else {
+          scoring = { score: 2, feedback: "Keep going!", suggestions: [] };
+        }
+        
+        return {
+          score: scoring.score,
+          feedback: scoring.feedback,
+          suggestions: scoring.suggestions,
+          scaffoldingPrompts,
+        };
+      }),
+
     // Get intelligent feedback
     getIntelligentFeedback: protectedProcedure
       .input(z.object({

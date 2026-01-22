@@ -1,6 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
@@ -98,6 +99,23 @@ export default function WritingSession() {
   // Form state
   const [topic, setTopic] = useState("");
   const [title, setTitle] = useState("");
+  
+  // Check My Score state
+  const [hookPreviewScore, setHookPreviewScore] = useState<{
+    score: number;
+    feedback: string;
+    scaffolding?: string[];
+  } | null>(null);
+  const [bodyPreviewScore, setBodyPreviewScore] = useState<{
+    score: number;
+    feedback: string;
+    scaffolding?: string[];
+  } | null>(null);
+  const [conclusionPreviewScore, setConclusionPreviewScore] = useState<{
+    score: number;
+    feedback: string;
+    scaffolding?: string[];
+  } | null>(null);
   const [hook, setHook] = useState("");
   const [currentParagraph, setCurrentParagraph] = useState({ topicSentence: "", supportingDetails: "" });
   const [conclusion, setConclusion] = useState("");
@@ -108,6 +126,8 @@ export default function WritingSession() {
   const [showScaffolding, setShowScaffolding] = useState(false);
   const [lastScore, setLastScore] = useState<{ score: number; feedback: string; label: string } | null>(null);
   const [isRevising, setIsRevising] = useState(false);
+  const [showHelpDialog, setShowHelpDialog] = useState(false);
+  const [helpContent, setHelpContent] = useState<{ tips: string[]; feedback?: string }>({ tips: [] });
   
   // Fetch session data
   const { data: sessionData, isLoading, refetch } = trpc.writing.get.useQuery(
@@ -181,6 +201,58 @@ export default function WritingSession() {
   
   const getIntelligentFeedbackMutation = trpc.writing.getIntelligentFeedback.useMutation();
   
+  // Check My Score mutations
+  const checkHookScoreMutation = trpc.writing.previewScore.useMutation({
+    onSuccess: (data) => {
+      setHookPreviewScore({
+        score: data.score,
+        feedback: data.feedback,
+        scaffolding: data.scaffoldingPrompts,
+      });
+      if (data.score === 1 && data.scaffoldingPrompts.length > 0) {
+        setScaffoldingPrompts(data.scaffoldingPrompts);
+        setShowScaffolding(true);
+      }
+    },
+    onError: () => {
+      toast.error("Couldn't check score. Try again!");
+    },
+  });
+  
+  const checkBodyScoreMutation = trpc.writing.previewScore.useMutation({
+    onSuccess: (data) => {
+      setBodyPreviewScore({
+        score: data.score,
+        feedback: data.feedback,
+        scaffolding: data.scaffoldingPrompts,
+      });
+      if (data.score === 1 && data.scaffoldingPrompts.length > 0) {
+        setScaffoldingPrompts(data.scaffoldingPrompts);
+        setShowScaffolding(true);
+      }
+    },
+    onError: () => {
+      toast.error("Couldn't check score. Try again!");
+    },
+  });
+  
+  const checkConclusionScoreMutation = trpc.writing.previewScore.useMutation({
+    onSuccess: (data) => {
+      setConclusionPreviewScore({
+        score: data.score,
+        feedback: data.feedback,
+        scaffolding: data.scaffoldingPrompts,
+      });
+      if (data.score === 1 && data.scaffoldingPrompts.length > 0) {
+        setScaffoldingPrompts(data.scaffoldingPrompts);
+        setShowScaffolding(true);
+      }
+    },
+    onError: () => {
+      toast.error("Couldn't check score. Try again!");
+    },
+  });
+  
   const reviseSectionMutation = trpc.writing.reviseSection.useMutation({
     onSuccess: (data) => {
       setLastScore({ score: data.score, feedback: data.feedback, label: "Revised Section" });
@@ -222,6 +294,38 @@ export default function WritingSession() {
   const handleGetHelp = async () => {
     if (!session) return;
     
+    // General tips for each step
+    const generalTips: Record<number, string[]> = {
+      1: [
+        "Pick a topic you know a lot about!",
+        "Your title should tell readers what your writing is about.",
+        "Think about what makes your topic interesting or special.",
+      ],
+      2: [
+        "Start with a question to make readers curious.",
+        "Share an amazing fact about your topic.",
+        "Use words like 'Did you know...' or 'Imagine...' to grab attention.",
+        "Make sure your hook connects to your topic.",
+      ],
+      3: [
+        "Start each paragraph with a main idea about your topic.",
+        "Add facts and details to support your main idea.",
+        "Use words like 'first,' 'next,' and 'also' to connect ideas.",
+        "Make sure all your information is about your topic.",
+      ],
+      4: [
+        "Remind readers what your writing was about.",
+        "End with a strong sentence that wraps up your ideas.",
+        "Try starting with 'In conclusion...' or 'That's why...'",
+        "Leave readers thinking about your topic.",
+      ],
+      5: [
+        "Read through your whole writing.",
+        "Check if all parts connect to your topic.",
+        "Be proud of your hard work!",
+      ],
+    };
+    
     let currentContent = "";
     let currentSection = "";
     
@@ -236,19 +340,26 @@ export default function WritingSession() {
       currentSection = "conclusion";
     }
     
-    if (!currentContent.trim()) {
-      toast.info("Write something first, then I can help! ✏️");
-      return;
+    // Show general tips first
+    const tips = generalTips[currentStep] || [];
+    
+    // If they have content, get AI feedback too
+    let aiFeedback: string | undefined;
+    if (currentContent.trim() && currentStep >= 2 && currentStep <= 4) {
+      try {
+        const result = await getIntelligentFeedbackMutation.mutateAsync({
+          sessionId: parseInt(sessionId || "0"),
+          currentSection,
+          currentContent,
+        });
+        aiFeedback = typeof result.feedback === 'string' ? result.feedback : undefined;
+      } catch (error) {
+        // If AI feedback fails, just show general tips
+      }
     }
     
-    const result = await getIntelligentFeedbackMutation.mutateAsync({
-      sessionId: parseInt(sessionId || "0"),
-      currentSection,
-      currentContent,
-    });
-    
-    const feedbackText = typeof result.feedback === 'string' ? result.feedback : 'Great work! Keep it up!';
-    toast.success(feedbackText, { duration: 8000 });
+    setHelpContent({ tips, feedback: aiFeedback });
+    setShowHelpDialog(true);
   };
   
   // Handle step submissions
@@ -562,14 +673,58 @@ export default function WritingSession() {
                 </div>
               )}
               
+              {/* Preview Score Display */}
+              {hookPreviewScore && (
+                <div className="p-4 rounded-xl bg-muted/30 border">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium">Your Score Preview</span>
+                    <span className={`score-badge score-${hookPreviewScore.score}`}>
+                      {hookPreviewScore.score === 3 ? "⭐" : hookPreviewScore.score === 2 ? "👍" : "💪"} {hookPreviewScore.score}/3
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{hookPreviewScore.feedback}</p>
+                  {hookPreviewScore.scaffolding && hookPreviewScore.scaffolding.length > 0 && (
+                    <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                      <p className="text-xs font-medium text-primary mb-2">💡 Tips to improve:</p>
+                      <ul className="space-y-1">
+                        {hookPreviewScore.scaffolding.map((tip, i) => (
+                          <li key={i} className="text-xs flex items-start gap-1">
+                            <span className="text-primary">•</span>
+                            {tip}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+              
               {!isRevising && (
                 <div className="flex gap-4">
-                  {lastScore && lastScore.score === 1 && (
-                    <Button variant="outline" onClick={handleReviseHook} className="flex-1">
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      Try Again
-                    </Button>
-                  )}
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (!hook.trim()) {
+                        toast.error("Write your hook first!");
+                        return;
+                      }
+                      setHookPreviewScore(null);
+                      checkHookScoreMutation.mutate({
+                        sessionId: parseInt(sessionId || "0"),
+                        sectionType: "hook",
+                        content: hook,
+                      });
+                    }}
+                    disabled={checkHookScoreMutation.isPending}
+                    className="flex-1"
+                  >
+                    {checkHookScoreMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    ) : (
+                      <Sparkles className="w-4 h-4 mr-2" />
+                    )}
+                    Check My Score
+                  </Button>
                   <Button
                     onClick={handleHookSubmit}
                     disabled={saveHookMutation.isPending}
@@ -654,7 +809,58 @@ export default function WritingSession() {
                 />
               </div>
               
+              {/* Preview Score Display */}
+              {bodyPreviewScore && (
+                <div className="p-4 rounded-xl bg-muted/30 border">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium">Your Score Preview</span>
+                    <span className={`score-badge score-${bodyPreviewScore.score}`}>
+                      {bodyPreviewScore.score === 3 ? "⭐" : bodyPreviewScore.score === 2 ? "👍" : "💪"} {bodyPreviewScore.score}/3
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{bodyPreviewScore.feedback}</p>
+                  {bodyPreviewScore.scaffolding && bodyPreviewScore.scaffolding.length > 0 && (
+                    <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                      <p className="text-xs font-medium text-primary mb-2">💡 Tips to improve:</p>
+                      <ul className="space-y-1">
+                        {bodyPreviewScore.scaffolding.map((tip, i) => (
+                          <li key={i} className="text-xs flex items-start gap-1">
+                            <span className="text-primary">•</span>
+                            {tip}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+              
               <div className="flex flex-col sm:flex-row gap-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const content = `${currentParagraph.topicSentence} ${currentParagraph.supportingDetails}`.trim();
+                    if (!content) {
+                      toast.error("Write your paragraph first!");
+                      return;
+                    }
+                    setBodyPreviewScore(null);
+                    checkBodyScoreMutation.mutate({
+                      sessionId: parseInt(sessionId || "0"),
+                      sectionType: "body",
+                      content,
+                    });
+                  }}
+                  disabled={checkBodyScoreMutation.isPending}
+                  className="flex-1"
+                >
+                  {checkBodyScoreMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <Sparkles className="w-4 h-4 mr-2" />
+                  )}
+                  Check My Score
+                </Button>
                 <Button
                   onClick={handleBodySubmit}
                   disabled={saveBodyMutation.isPending}
@@ -727,18 +933,57 @@ export default function WritingSession() {
                 />
               </div>
               
+              {/* Preview Score Display */}
+              {conclusionPreviewScore && (
+                <div className="p-4 rounded-xl bg-muted/30 border">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium">Your Score Preview</span>
+                    <span className={`score-badge score-${conclusionPreviewScore.score}`}>
+                      {conclusionPreviewScore.score === 3 ? "⭐" : conclusionPreviewScore.score === 2 ? "👍" : "💪"} {conclusionPreviewScore.score}/3
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{conclusionPreviewScore.feedback}</p>
+                  {conclusionPreviewScore.scaffolding && conclusionPreviewScore.scaffolding.length > 0 && (
+                    <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                      <p className="text-xs font-medium text-primary mb-2">💡 Tips to improve:</p>
+                      <ul className="space-y-1">
+                        {conclusionPreviewScore.scaffolding.map((tip, i) => (
+                          <li key={i} className="text-xs flex items-start gap-1">
+                            <span className="text-primary">•</span>
+                            {tip}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+              
               <div className="flex gap-4">
-                {lastScore && lastScore.score === 1 && (
-                  <Button
-                    variant="outline"
-                    onClick={() => handleSubmitRevision("conclusion", conclusion)}
-                    disabled={reviseSectionMutation.isPending}
-                    className="flex-1"
-                  >
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Try Again
-                  </Button>
-                )}
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (!conclusion.trim()) {
+                      toast.error("Write your conclusion first!");
+                      return;
+                    }
+                    setConclusionPreviewScore(null);
+                    checkConclusionScoreMutation.mutate({
+                      sessionId: parseInt(sessionId || "0"),
+                      sectionType: "conclusion",
+                      content: conclusion,
+                    });
+                  }}
+                  disabled={checkConclusionScoreMutation.isPending}
+                  className="flex-1"
+                >
+                  {checkConclusionScoreMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <Sparkles className="w-4 h-4 mr-2" />
+                  )}
+                  Check My Score
+                </Button>
                 <Button
                   onClick={handleConclusionSubmit}
                   disabled={saveConclusionMutation.isPending}
@@ -801,6 +1046,45 @@ export default function WritingSession() {
           </div>
         )}
       </main>
+      
+      {/* Help Dialog */}
+      <Dialog open={showHelpDialog} onOpenChange={setShowHelpDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lightbulb className="w-5 h-5 text-primary" />
+              Writing Tips for {STEPS[currentStep - 1]?.title}
+            </DialogTitle>
+            <DialogDescription>
+              Here are some tips to help you write better!
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {helpContent.tips.length > 0 && (
+              <div>
+                <p className="text-sm font-medium mb-2">🎯 General Tips:</p>
+                <ul className="space-y-2">
+                  {helpContent.tips.map((tip, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm">
+                      <span className="text-primary font-bold mt-0.5">•</span>
+                      <span>{tip}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {helpContent.feedback && (
+              <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+                <p className="text-sm font-medium text-primary mb-1">🤖 AI Feedback:</p>
+                <p className="text-sm">{helpContent.feedback}</p>
+              </div>
+            )}
+            <Button onClick={() => setShowHelpDialog(false)} className="w-full">
+              Got it! ✔️
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
