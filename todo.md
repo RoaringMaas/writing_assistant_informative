@@ -97,3 +97,9 @@
 
 ## Bug Reports (2026-01-26)
 - [x] Fix scoring inconsistency: Score Preview shows different score than final assessment page for same content
+
+
+## Scoring Adjustments (2026-01-26)
+- [x] Remove word count penalty from individual section scoring (Hook, Body, Conclusion)
+- [x] Keep word count penalty only for final overall assessment
+- [x] Score each section based on quality alone, not word count

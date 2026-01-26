@@ -703,14 +703,16 @@ export const appRouter = router({
         let wordCountWarning = "";
         let scoreAdjustment = 0;
         
-        // Check TOTAL word count and adjust scoring (matching final assessment logic)
+        // Calculate word count for warning but DO NOT apply penalty to individual sections
+        // Penalty only applies to final overall assessment
         if (totalWordCount < MIN_WORDS) {
           wordCountWarning = `Your whole article has ${totalWordCount} words. Try to write at least ${MIN_WORDS} words total to show more details!`;
-          scoreAdjustment = -1; // Deduct 1 point for insufficient content
         } else if (totalWordCount > MAX_WORDS) {
           wordCountWarning = `Your whole article has ${totalWordCount} words. Try to keep it under ${MAX_WORDS} words to stay focused!`;
-          scoreAdjustment = 0; // No deduction for being too long, but feedback given
         }
+        
+        // scoreAdjustment remains 0 - no penalty for individual sections
+        scoreAdjustment = 0;
         
         if (input.sectionType === "hook") {
           scoring = await scoreContent(
@@ -720,8 +722,8 @@ export const appRouter = router({
             "3=effectively grabs attention and introduces topic, 2=present but weak/not entirely relevant, 1=no hook or fails to engage"
           );
           
-          // Apply word count adjustment
-          let adjustedScore = Math.max(1, Math.min(3, scoring.score + scoreAdjustment));
+          // Score based on quality alone, no word count penalty for individual sections
+          let adjustedScore = scoring.score;
           
           if (adjustedScore === 1 || totalWordCount < MIN_WORDS) {
             scaffoldingPrompts = [
@@ -743,8 +745,8 @@ export const appRouter = router({
             "3=includes multiple accurate, relevant facts/details, 2=some relevant info but limited, 1=lacks relevant information or off-topic"
           );
           
-          // Apply word count adjustment
-          let adjustedScore = Math.max(1, Math.min(3, scoring.score + scoreAdjustment));
+          // Score based on quality alone, no word count penalty for individual sections
+          let adjustedScore = scoring.score;
           
           if (adjustedScore === 1 || totalWordCount < MIN_WORDS) {
             scaffoldingPrompts = [
@@ -766,8 +768,8 @@ export const appRouter = router({
             "3=effectively wraps up the writing with clear connection to topic, 2=present but weak connection, 1=does not effectively conclude"
           );
           
-          // Apply word count adjustment
-          let adjustedScore = Math.max(1, Math.min(3, scoring.score + scoreAdjustment));
+          // Score based on quality alone, no word count penalty for individual sections
+          let adjustedScore = scoring.score;
           
           if (adjustedScore === 1 || totalWordCount < MIN_WORDS) {
             scaffoldingPrompts = [
