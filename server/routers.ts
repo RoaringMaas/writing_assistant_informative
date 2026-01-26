@@ -728,7 +728,7 @@ export const appRouter = router({
               "Use words like 'Did you know...' or 'Imagine...' to grab attention.",
             ];
             if (wordCount < MIN_WORDS) {
-              scaffoldingPrompts.push(`Add more details! You have ${wordCount} words, but aim for ${MIN_WORDS} words.`);
+              scaffoldingPrompts.push(`Add more details! Your whole article has ${wordCount} words, but aim for ${MIN_WORDS} words total across all sections.`);
             }
           }
           
@@ -751,7 +751,7 @@ export const appRouter = router({
               "Use words like 'first,' 'next,' and 'also' to connect your ideas.",
             ];
             if (wordCount < MIN_WORDS) {
-              scaffoldingPrompts.push(`Add more details! You have ${wordCount} words, but aim for ${MIN_WORDS} words.`);
+              scaffoldingPrompts.push(`Add more details! Your whole article has ${wordCount} words, but aim for ${MIN_WORDS} words total across all sections.`);
             }
           }
           
@@ -774,7 +774,7 @@ export const appRouter = router({
               "Try starting with 'In conclusion...' or 'That's why...'",
             ];
             if (wordCount < MIN_WORDS) {
-              scaffoldingPrompts.push(`Add more details! You have ${wordCount} words, but aim for ${MIN_WORDS} words.`);
+              scaffoldingPrompts.push(`Add more details! Your whole article has ${wordCount} words, but aim for ${MIN_WORDS} words total across all sections.`);
             }
           }
           

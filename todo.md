@@ -83,3 +83,7 @@
 - [x] Generate relevant vocabulary based on student's topic using LLM
 - [x] Display word bank in an accessible panel during writing
 - [x] Make word bank clickable to copy words to clipboard
+
+
+## Bug Fixes (2026-01-26)
+- [x] Fix misleading word count tip in scaffolding prompts - clarify 120 words is total across all sections, not per section
