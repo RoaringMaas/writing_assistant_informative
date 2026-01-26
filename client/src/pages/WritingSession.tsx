@@ -129,6 +129,7 @@ export default function WritingSession() {
   const [isRevising, setIsRevising] = useState(false);
   const [showHelpDialog, setShowHelpDialog] = useState(false);
   const [helpContent, setHelpContent] = useState<{ tips: string[]; feedback?: string }>({ tips: [] });
+  const [showWordBank, setShowWordBank] = useState(false);
   
   // Fetch session data
   const { data: sessionData, isLoading, refetch } = trpc.writing.get.useQuery(
@@ -139,6 +140,13 @@ export default function WritingSession() {
   const session = sessionData?.session;
   const paragraphs = sessionData?.paragraphs || [];
   const currentStep = session?.currentStep || 1;
+  
+  // Word bank query
+  const { data: wordBankData } = trpc.writing.getWordBank.useQuery(
+    { topic: session?.topic || "" },
+    { enabled: !!session?.topic && currentStep >= 2 }
+  );
+  const wordBank = wordBankData?.words || [];
   
   // Mutations
   const setTopicMutation = trpc.writing.setTopic.useMutation({
@@ -497,19 +505,30 @@ export default function WritingSession() {
             </div>
           </div>
           
-          <Button
-            variant="outline"
-            onClick={handleGetHelp}
-            disabled={getIntelligentFeedbackMutation.isPending}
-            className="gap-2"
-          >
-            {getIntelligentFeedbackMutation.isPending ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Sparkles className="w-4 h-4" />
+          <div className="flex gap-2">
+            {currentStep >= 2 && currentStep <= 4 && (
+              <Button
+                variant="outline"
+                onClick={() => setShowWordBank(!showWordBank)}
+                className="gap-2"
+              >
+                📚 Word Bank
+              </Button>
             )}
-            Get Help
-          </Button>
+            <Button
+              variant="outline"
+              onClick={handleGetHelp}
+              disabled={getIntelligentFeedbackMutation.isPending}
+              className="gap-2"
+            >
+              {getIntelligentFeedbackMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Sparkles className="w-4 h-4" />
+              )}
+              Get Help
+            </Button>
+          </div>
         </div>
         
         {/* Progress bar */}
@@ -553,6 +572,50 @@ export default function WritingSession() {
             prompts={scaffoldingPrompts}
             onDismiss={() => setShowScaffolding(false)}
           />
+        )}
+        
+        {/* Word Bank Panel */}
+        {showWordBank && currentStep >= 2 && currentStep <= 4 && (
+          <Card className="mb-6 card-playful border-2 border-primary/30">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  📚 Word Bank: {session?.topic}
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowWordBank(false)}
+                >
+                  Close
+                </Button>
+              </div>
+              <CardDescription>
+                Click any word to help with spelling!
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                {wordBank.map((word: string, index: number) => (
+                  <button
+                    key={index}
+                    onClick={() => {
+                      navigator.clipboard.writeText(word);
+                      toast.success(`Copied "${word}" to clipboard!`);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-sm font-medium transition-colors border border-primary/20 hover:border-primary/40"
+                  >
+                    {word}
+                  </button>
+                ))}
+              </div>
+              {wordBank.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Loading helpful words...
+                </p>
+              )}
+            </CardContent>
+          </Card>
         )}
         
         {/* Last Score Display */}
@@ -640,9 +703,14 @@ export default function WritingSession() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium mb-2">
-                  Your Hook
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium">
+                    Your Hook
+                  </label>
+                  <span className="text-xs text-muted-foreground">
+                    {hook.trim().split(/\s+/).filter(w => w.length > 0).length} words
+                  </span>
+                </div>
                 <Textarea
                   value={hook}
                   onChange={(e) => setHook(e.target.value)}
@@ -775,9 +843,14 @@ export default function WritingSession() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium mb-2">
-                  What's one important thing about {session.topic}?
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium">
+                    What's one important thing about {session.topic}?
+                  </label>
+                  <span className="text-xs text-muted-foreground">
+                    {currentParagraph.topicSentence.trim().split(/\s+/).filter(w => w.length > 0).length} words
+                  </span>
+                </div>
                 <Textarea
                   value={currentParagraph.topicSentence}
                   onChange={(e) =>
@@ -793,9 +866,14 @@ export default function WritingSession() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium mb-2">
-                  Tell me more! What facts support this?
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium">
+                    Tell me more! What facts support this?
+                  </label>
+                  <span className="text-xs text-muted-foreground">
+                    {currentParagraph.supportingDetails.trim().split(/\s+/).filter(w => w.length > 0).length} words
+                  </span>
+                </div>
                 <Textarea
                   value={currentParagraph.supportingDetails}
                   onChange={(e) =>
@@ -922,9 +1000,14 @@ export default function WritingSession() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium mb-2">
-                  Your Conclusion
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium">
+                    Your Conclusion
+                  </label>
+                  <span className="text-xs text-muted-foreground">
+                    {conclusion.trim().split(/\s+/).filter(w => w.length > 0).length} words
+                  </span>
+                </div>
                 <Textarea
                   value={conclusion}
                   onChange={(e) => setConclusion(e.target.value)}
@@ -1157,11 +1240,11 @@ function AssessmentResults({ data, session, paragraphs, sessionId, onRefetch }: 
           <p className="text-center text-muted-foreground">{percentage}% complete!</p>
           
           {/* Perfect Score Certificate */}
-          {data.totalScore === data.maxScore && (
+          {data.totalScore >= 14 && (
             <div className="mt-6 p-4 rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 border-2 border-primary/30">
               <div className="text-center space-y-3">
-                <p className="text-lg font-bold text-primary">🏆 Perfect Score! 🏆</p>
-                <p className="text-sm text-muted-foreground">You're an Informational Text Expert!</p>
+                <p className="text-lg font-bold text-primary">🏆 Excellent Score! 🏆</p>
+                <p className="text-sm text-muted-foreground">You've earned {data.totalScore} points! You're an Informational Text Expert!</p>
                 <Button
                   onClick={() => setLocation(`/certificate/${sessionId}`)}
                   className="btn-fun"

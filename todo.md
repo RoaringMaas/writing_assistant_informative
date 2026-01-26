@@ -70,3 +70,16 @@
 - [x] Add certificate generation for perfect scores (18/18 points)
 - [x] Make certificate downloadable/printable
 - [x] Add visual design to certificate (badge, decorative elements)
+
+
+## Additional Enhancements (2026-01-26)
+- [x] Add live word count tracker during writing (show current/target words)
+- [x] Display word count in Hook section
+- [x] Display word count in Body Paragraph section
+- [x] Display word count in Conclusion section
+- [x] Lower certificate eligibility threshold from 18/18 to 14+ points
+- [x] Update certificate button logic
+- [x] Implement topic-specific word bank feature
+- [x] Generate relevant vocabulary based on student's topic using LLM
+- [x] Display word bank in an accessible panel during writing
+- [x] Make word bank clickable to copy words to clipboard

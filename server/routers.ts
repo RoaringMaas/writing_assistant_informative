@@ -829,6 +829,57 @@ Give them helpful, encouraging tips to improve.`,
           feedback: response.choices[0].message.content || "Keep up the great work!",
         };
       }),
+
+    // Generate topic-specific word bank
+    getWordBank: protectedProcedure
+      .input(z.object({
+        topic: z.string(),
+      }))
+      .query(async ({ input }) => {
+        const response = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `You are a helpful vocabulary assistant for young students (ages 6-9) writing informational texts.
+Generate a list of 15-20 relevant, grade-appropriate words related to the topic.
+Include nouns, verbs, and adjectives. Keep words simple but interesting.
+Return ONLY a JSON array of words, nothing else.`,
+            },
+            {
+              role: "user",
+              content: `Topic: ${input.topic}
+
+Generate helpful vocabulary words.`,
+            },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "word_bank",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  words: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "List of vocabulary words",
+                  },
+                },
+                required: ["words"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+        
+        const rawContent = response.choices[0].message.content;
+        const contentStr = typeof rawContent === 'string' ? rawContent : '{}';
+        const result = JSON.parse(contentStr);
+        return {
+          words: result.words || [],
+        };
+      }),
   }),
 });
 
