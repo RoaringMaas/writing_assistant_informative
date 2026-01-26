@@ -94,8 +94,7 @@ export default function Home() {
           </h2>
           
           <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-            I'll help you write amazing informational texts step by step. 
-            It's easy and fun!
+            I'll help you write amazing informational texts step by step.
           </p>
           
           <Button
