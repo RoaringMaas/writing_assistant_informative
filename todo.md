@@ -87,3 +87,9 @@
 
 ## Bug Fixes (2026-01-26)
 - [x] Fix misleading word count tip in scaffolding prompts - clarify 120 words is total across all sections, not per section
+
+
+## Feature Changes (2026-01-26)
+- [x] Replace "Tips to improve" section with AI Feedback to make personalized suggestions more prominent
+- [x] Remove generic scaffolding prompts from score display
+- [x] Display AI Feedback as the primary improvement guidance

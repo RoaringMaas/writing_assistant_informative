@@ -106,16 +106,19 @@ export default function WritingSession() {
     score: number;
     feedback: string;
     scaffolding?: string[];
+    aiFeedback?: string;
   } | null>(null);
   const [bodyPreviewScore, setBodyPreviewScore] = useState<{
     score: number;
     feedback: string;
     scaffolding?: string[];
+    aiFeedback?: string;
   } | null>(null);
   const [conclusionPreviewScore, setConclusionPreviewScore] = useState<{
     score: number;
     feedback: string;
     scaffolding?: string[];
+    aiFeedback?: string;
   } | null>(null);
   const [hook, setHook] = useState("");
   const [currentParagraph, setCurrentParagraph] = useState({ topicSentence: "", supportingDetails: "" });
@@ -212,11 +215,24 @@ export default function WritingSession() {
   
   // Check My Score mutations
   const checkHookScoreMutation = trpc.writing.previewScore.useMutation({
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
+      let aiFeedback: string | undefined;
+      try {
+        const result = await getIntelligentFeedbackMutation.mutateAsync({
+          sessionId: parseInt(sessionId || "0"),
+          currentSection: "hook",
+          currentContent: hook,
+        });
+        aiFeedback = typeof result.feedback === 'string' ? result.feedback : undefined;
+      } catch (error) {
+        // If AI feedback fails, just use scaffolding prompts
+      }
+      
       setHookPreviewScore({
         score: data.score,
         feedback: data.feedback,
         scaffolding: data.scaffoldingPrompts,
+        aiFeedback,
       });
       if (data.score === 1 && data.scaffoldingPrompts.length > 0) {
         setScaffoldingPrompts(data.scaffoldingPrompts);
@@ -229,11 +245,24 @@ export default function WritingSession() {
   });
   
   const checkBodyScoreMutation = trpc.writing.previewScore.useMutation({
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
+      let aiFeedback: string | undefined;
+      try {
+        const result = await getIntelligentFeedbackMutation.mutateAsync({
+          sessionId: parseInt(sessionId || "0"),
+          currentSection: "body",
+          currentContent: currentParagraph.topicSentence + " " + currentParagraph.supportingDetails,
+        });
+        aiFeedback = typeof result.feedback === 'string' ? result.feedback : undefined;
+      } catch (error) {
+        // If AI feedback fails, just use scaffolding prompts
+      }
+      
       setBodyPreviewScore({
         score: data.score,
         feedback: data.feedback,
         scaffolding: data.scaffoldingPrompts,
+        aiFeedback,
       });
       if (data.score === 1 && data.scaffoldingPrompts.length > 0) {
         setScaffoldingPrompts(data.scaffoldingPrompts);
@@ -246,11 +275,24 @@ export default function WritingSession() {
   });
   
   const checkConclusionScoreMutation = trpc.writing.previewScore.useMutation({
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
+      let aiFeedback: string | undefined;
+      try {
+        const result = await getIntelligentFeedbackMutation.mutateAsync({
+          sessionId: parseInt(sessionId || "0"),
+          currentSection: "conclusion",
+          currentContent: conclusion,
+        });
+        aiFeedback = typeof result.feedback === 'string' ? result.feedback : undefined;
+      } catch (error) {
+        // If AI feedback fails, just use scaffolding prompts
+      }
+      
       setConclusionPreviewScore({
         score: data.score,
         feedback: data.feedback,
         scaffolding: data.scaffoldingPrompts,
+        aiFeedback,
       });
       if (data.score === 1 && data.scaffoldingPrompts.length > 0) {
         setScaffoldingPrompts(data.scaffoldingPrompts);
@@ -752,7 +794,13 @@ export default function WritingSession() {
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground">{hookPreviewScore.feedback}</p>
-                  {hookPreviewScore.scaffolding && hookPreviewScore.scaffolding.length > 0 && (
+                  {hookPreviewScore.aiFeedback && (
+                    <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                      <p className="text-xs font-medium text-primary mb-2">🤖 AI Feedback:</p>
+                      <p className="text-xs leading-relaxed">{hookPreviewScore.aiFeedback}</p>
+                    </div>
+                  )}
+                  {!hookPreviewScore.aiFeedback && hookPreviewScore.scaffolding && hookPreviewScore.scaffolding.length > 0 && (
                     <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
                       <p className="text-xs font-medium text-primary mb-2">💡 Tips to improve:</p>
                       <ul className="space-y-1">
@@ -898,7 +946,13 @@ export default function WritingSession() {
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground">{bodyPreviewScore.feedback}</p>
-                  {bodyPreviewScore.scaffolding && bodyPreviewScore.scaffolding.length > 0 && (
+                  {bodyPreviewScore.aiFeedback && (
+                    <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                      <p className="text-xs font-medium text-primary mb-2">🤖 AI Feedback:</p>
+                      <p className="text-xs leading-relaxed">{bodyPreviewScore.aiFeedback}</p>
+                    </div>
+                  )}
+                  {!bodyPreviewScore.aiFeedback && bodyPreviewScore.scaffolding && bodyPreviewScore.scaffolding.length > 0 && (
                     <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
                       <p className="text-xs font-medium text-primary mb-2">💡 Tips to improve:</p>
                       <ul className="space-y-1">
@@ -1027,7 +1081,13 @@ export default function WritingSession() {
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground">{conclusionPreviewScore.feedback}</p>
-                  {conclusionPreviewScore.scaffolding && conclusionPreviewScore.scaffolding.length > 0 && (
+                  {conclusionPreviewScore.aiFeedback && (
+                    <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                      <p className="text-xs font-medium text-primary mb-2">🤖 AI Feedback:</p>
+                      <p className="text-xs leading-relaxed">{conclusionPreviewScore.aiFeedback}</p>
+                    </div>
+                  )}
+                  {!conclusionPreviewScore.aiFeedback && conclusionPreviewScore.scaffolding && conclusionPreviewScore.scaffolding.length > 0 && (
                     <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
                       <p className="text-xs font-medium text-primary mb-2">💡 Tips to improve:</p>
                       <ul className="space-y-1">
