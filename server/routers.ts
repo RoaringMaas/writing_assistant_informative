@@ -125,6 +125,8 @@ async function performOverallAssessment(
   strengths: string[];
   areasForGrowth: string[];
   overallFeedback: string;
+  totalWordCount: number;
+  wordCountStatus: string;
 }> {
   const fullText = `Title: ${title}
 
@@ -138,6 +140,25 @@ ${p.supportingDetails || ""}`).join("\n\n")}
 
 Conclusion:
 ${conclusion}`;
+
+  // Calculate total word count across all sections
+  const allContent = `${hook} ${paragraphs.map(p => `${p.topicSentence || ""} ${p.supportingDetails || ""}`).join(" ")} ${conclusion}`;
+  const totalWordCount = allContent.trim().split(/\s+/).filter(w => w.length > 0).length;
+  const MIN_WORDS = 120;
+  const MAX_WORDS = 300;
+  
+  let wordCountStatus = "";
+  let wordCountPenalty = 0;
+  
+  if (totalWordCount < MIN_WORDS) {
+    wordCountStatus = `Your writing has ${totalWordCount} words. You need at least ${MIN_WORDS} words. Add more details!`;
+    wordCountPenalty = 1; // Deduct 1 point from each criterion
+  } else if (totalWordCount > MAX_WORDS) {
+    wordCountStatus = `Your writing has ${totalWordCount} words. Try to keep it under ${MAX_WORDS} words to stay focused!`;
+    wordCountPenalty = 0; // No penalty, just feedback
+  } else {
+    wordCountStatus = `Great job! Your writing has ${totalWordCount} words, which is perfect!`;
+  }
 
   const response = await invokeLLM({
     messages: [
@@ -178,19 +199,27 @@ Please provide a comprehensive assessment.`,
   const rawContent2 = response.choices[0].message.content;
   const contentStr2 = typeof rawContent2 === 'string' ? rawContent2 : '{}';
   const result = JSON.parse(contentStr2);
+  
+  // Apply word count penalty to all scores
+  const adjustScore = (score: number) => Math.max(1, score - wordCountPenalty);
+  
   return {
     scores: {
-      titleSubtitles: result.titleSubtitles || 2,
-      hook: result.hook || 2,
-      relevantInfo: result.relevantInfo || 2,
-      transitions: result.transitions || 2,
-      accuracy: result.accuracy || 2,
-      vocabulary: result.vocabulary || 2,
+      titleSubtitles: adjustScore(result.titleSubtitles || 2),
+      hook: adjustScore(result.hook || 2),
+      relevantInfo: adjustScore(result.relevantInfo || 2),
+      transitions: adjustScore(result.transitions || 2),
+      accuracy: adjustScore(result.accuracy || 2),
+      vocabulary: adjustScore(result.vocabulary || 2),
     },
     feedback: result.feedback || {},
     strengths: result.strengths || [],
-    areasForGrowth: result.areasForGrowth || [],
+    areasForGrowth: totalWordCount < MIN_WORDS 
+      ? [...(result.areasForGrowth || []), `Add more details to reach at least ${MIN_WORDS} words`]
+      : (result.areasForGrowth || []),
     overallFeedback: result.overallFeedback || "Great effort!",
+    totalWordCount,
+    wordCountStatus,
   };
 }
 
@@ -662,8 +691,24 @@ export const appRouter = router({
         const session = await getWritingSession(input.sessionId, ctx.user.id);
         if (!session) throw new Error("Session not found");
         
+        // Calculate word count
+        const wordCount = input.content.trim().split(/\s+/).filter(w => w.length > 0).length;
+        const MIN_WORDS = 120;
+        const MAX_WORDS = 300;
+        
         let scoring: { score: number; feedback: string; suggestions: string[] };
         let scaffoldingPrompts: string[] = [];
+        let wordCountWarning = "";
+        let scoreAdjustment = 0;
+        
+        // Check word count and adjust scoring
+        if (wordCount < MIN_WORDS) {
+          wordCountWarning = `Your writing is ${wordCount} words. Try to write at least ${MIN_WORDS} words to show more details!`;
+          scoreAdjustment = -1; // Deduct 1 point for insufficient content
+        } else if (wordCount > MAX_WORDS) {
+          wordCountWarning = `Your writing is ${wordCount} words. Try to keep it under ${MAX_WORDS} words to stay focused!`;
+          scoreAdjustment = 0; // No deduction for being too long, but feedback given
+        }
         
         if (input.sectionType === "hook") {
           scoring = await scoreContent(
@@ -673,13 +718,21 @@ export const appRouter = router({
             "3=effectively grabs attention and introduces topic, 2=present but weak/not entirely relevant, 1=no hook or fails to engage"
           );
           
-          if (scoring.score === 1) {
+          // Apply word count adjustment
+          let adjustedScore = Math.max(1, Math.min(3, scoring.score + scoreAdjustment));
+          
+          if (adjustedScore === 1 || wordCount < MIN_WORDS) {
             scaffoldingPrompts = [
               "Try starting with a question that makes readers curious!",
               "Share an amazing fact about your topic.",
               "Use words like 'Did you know...' or 'Imagine...' to grab attention.",
             ];
+            if (wordCount < MIN_WORDS) {
+              scaffoldingPrompts.push(`Add more details! You have ${wordCount} words, but aim for ${MIN_WORDS} words.`);
+            }
           }
+          
+          scoring.score = adjustedScore;
         } else if (input.sectionType === "body") {
           scoring = await scoreContent(
             "Relevant Information",
@@ -688,13 +741,21 @@ export const appRouter = router({
             "3=includes multiple accurate, relevant facts/details, 2=some relevant info but limited, 1=lacks relevant information or off-topic"
           );
           
-          if (scoring.score === 1) {
+          // Apply word count adjustment
+          let adjustedScore = Math.max(1, Math.min(3, scoring.score + scoreAdjustment));
+          
+          if (adjustedScore === 1 || wordCount < MIN_WORDS) {
             scaffoldingPrompts = [
               "Add more facts and details about your topic.",
               "Think about what makes your topic special or interesting.",
               "Use words like 'first,' 'next,' and 'also' to connect your ideas.",
             ];
+            if (wordCount < MIN_WORDS) {
+              scaffoldingPrompts.push(`Add more details! You have ${wordCount} words, but aim for ${MIN_WORDS} words.`);
+            }
           }
+          
+          scoring.score = adjustedScore;
         } else if (input.sectionType === "conclusion") {
           scoring = await scoreContent(
             "Conclusion Cohesion",
@@ -703,13 +764,21 @@ export const appRouter = router({
             "3=effectively wraps up the writing with clear connection to topic, 2=present but weak connection, 1=does not effectively conclude"
           );
           
-          if (scoring.score === 1) {
+          // Apply word count adjustment
+          let adjustedScore = Math.max(1, Math.min(3, scoring.score + scoreAdjustment));
+          
+          if (adjustedScore === 1 || wordCount < MIN_WORDS) {
             scaffoldingPrompts = [
               "Remind readers what your writing was about.",
               "End with a strong sentence that wraps up your ideas.",
               "Try starting with 'In conclusion...' or 'That's why...'",
             ];
+            if (wordCount < MIN_WORDS) {
+              scaffoldingPrompts.push(`Add more details! You have ${wordCount} words, but aim for ${MIN_WORDS} words.`);
+            }
           }
+          
+          scoring.score = adjustedScore;
         } else {
           scoring = { score: 2, feedback: "Keep going!", suggestions: [] };
         }
@@ -719,6 +788,10 @@ export const appRouter = router({
           feedback: scoring.feedback,
           suggestions: scoring.suggestions,
           scaffoldingPrompts,
+          wordCount,
+          wordCountWarning,
+          minWords: MIN_WORDS,
+          maxWords: MAX_WORDS,
         };
       }),
 

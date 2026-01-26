@@ -58,3 +58,15 @@
 - [x] Add general writing tips for Hook writing
 - [x] Add general writing tips for Body paragraphs
 - [x] Add general writing tips for Conclusion writing
+
+
+## Feature Adjustments (2026-01-22)
+- [x] Implement word count validation (120-300 words minimum/maximum)
+- [x] Deduct points if content is below word count requirement
+- [x] Show word count feedback to students during writing
+- [x] Create article display page with paper-like template
+- [x] Add engaging visuals to article display
+- [x] Display full article with all sections formatted nicely
+- [x] Add certificate generation for perfect scores (18/18 points)
+- [x] Make certificate downloadable/printable
+- [x] Add visual design to certificate (badge, decorative elements)

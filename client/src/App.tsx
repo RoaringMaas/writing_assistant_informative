@@ -7,6 +7,8 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import WritingSession from "./pages/WritingSession";
 import SessionHistory from "./pages/SessionHistory";
+import ArticleDisplay from "./pages/ArticleDisplay";
+import Certificate from "./pages/Certificate";
 
 function Router() {
   return (
@@ -14,6 +16,8 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/write/:sessionId" component={WritingSession} />
       <Route path="/history" component={SessionHistory} />
+      <Route path="/article/:sessionId" component={ArticleDisplay} />
+      <Route path="/certificate/:sessionId" component={Certificate} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

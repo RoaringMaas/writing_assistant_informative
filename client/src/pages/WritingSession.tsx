@@ -19,6 +19,7 @@ import {
   Home,
   RefreshCw,
   Lightbulb,
+  Award,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -1154,6 +1155,23 @@ function AssessmentResults({ data, session, paragraphs, sessionId, onRefetch }: 
             />
           </div>
           <p className="text-center text-muted-foreground">{percentage}% complete!</p>
+          
+          {/* Perfect Score Certificate */}
+          {data.totalScore === data.maxScore && (
+            <div className="mt-6 p-4 rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 border-2 border-primary/30">
+              <div className="text-center space-y-3">
+                <p className="text-lg font-bold text-primary">🏆 Perfect Score! 🏆</p>
+                <p className="text-sm text-muted-foreground">You're an Informational Text Expert!</p>
+                <Button
+                  onClick={() => setLocation(`/certificate/${sessionId}`)}
+                  className="btn-fun"
+                >
+                  <Award className="w-4 h-4 mr-2" />
+                  Get Your Certificate!
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
       
@@ -1295,6 +1313,13 @@ function AssessmentResults({ data, session, paragraphs, sessionId, onRefetch }: 
       
       {/* Actions */}
       <div className="flex flex-col sm:flex-row gap-4">
+        <Button
+          variant="outline"
+          onClick={() => setLocation(`/article/${sessionId}`)}
+          className="flex-1"
+        >
+          📄 View Full Article
+        </Button>
         <Button
           variant="outline"
           onClick={() => setLocation("/history")}
