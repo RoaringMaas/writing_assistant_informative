@@ -93,3 +93,7 @@
 - [x] Replace "Tips to improve" section with AI Feedback to make personalized suggestions more prominent
 - [x] Remove generic scaffolding prompts from score display
 - [x] Display AI Feedback as the primary improvement guidance
+
+
+## Bug Reports (2026-01-26)
+- [x] Fix scoring inconsistency: Score Preview shows different score than final assessment page for same content

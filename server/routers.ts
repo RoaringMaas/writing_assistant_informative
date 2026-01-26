@@ -691,8 +691,10 @@ export const appRouter = router({
         const session = await getWritingSession(input.sessionId, ctx.user.id);
         if (!session) throw new Error("Session not found");
         
-        // Calculate word count
-        const wordCount = input.content.trim().split(/\s+/).filter(w => w.length > 0).length;
+        // Calculate TOTAL word count across all sections (like final assessment does)
+        const paragraphs = await getBodyParagraphs(input.sessionId);
+        const allContent = `${session.hook || ""} ${paragraphs.map(p => `${p.topicSentence || ""} ${p.supportingDetails || ""}`).join(" ")} ${session.conclusion || ""} ${input.content}`;
+        const totalWordCount = allContent.trim().split(/\s+/).filter(w => w.length > 0).length;
         const MIN_WORDS = 120;
         const MAX_WORDS = 300;
         
@@ -701,12 +703,12 @@ export const appRouter = router({
         let wordCountWarning = "";
         let scoreAdjustment = 0;
         
-        // Check word count and adjust scoring
-        if (wordCount < MIN_WORDS) {
-          wordCountWarning = `Your writing is ${wordCount} words. Try to write at least ${MIN_WORDS} words to show more details!`;
+        // Check TOTAL word count and adjust scoring (matching final assessment logic)
+        if (totalWordCount < MIN_WORDS) {
+          wordCountWarning = `Your whole article has ${totalWordCount} words. Try to write at least ${MIN_WORDS} words total to show more details!`;
           scoreAdjustment = -1; // Deduct 1 point for insufficient content
-        } else if (wordCount > MAX_WORDS) {
-          wordCountWarning = `Your writing is ${wordCount} words. Try to keep it under ${MAX_WORDS} words to stay focused!`;
+        } else if (totalWordCount > MAX_WORDS) {
+          wordCountWarning = `Your whole article has ${totalWordCount} words. Try to keep it under ${MAX_WORDS} words to stay focused!`;
           scoreAdjustment = 0; // No deduction for being too long, but feedback given
         }
         
@@ -721,14 +723,14 @@ export const appRouter = router({
           // Apply word count adjustment
           let adjustedScore = Math.max(1, Math.min(3, scoring.score + scoreAdjustment));
           
-          if (adjustedScore === 1 || wordCount < MIN_WORDS) {
+          if (adjustedScore === 1 || totalWordCount < MIN_WORDS) {
             scaffoldingPrompts = [
               "Try starting with a question that makes readers curious!",
               "Share an amazing fact about your topic.",
               "Use words like 'Did you know...' or 'Imagine...' to grab attention.",
             ];
-            if (wordCount < MIN_WORDS) {
-              scaffoldingPrompts.push(`Add more details! Your whole article has ${wordCount} words, but aim for ${MIN_WORDS} words total across all sections.`);
+            if (totalWordCount < MIN_WORDS) {
+              scaffoldingPrompts.push(`Add more details! Your whole article has ${totalWordCount} words, but aim for ${MIN_WORDS} words total across all sections.`);
             }
           }
           
@@ -744,14 +746,14 @@ export const appRouter = router({
           // Apply word count adjustment
           let adjustedScore = Math.max(1, Math.min(3, scoring.score + scoreAdjustment));
           
-          if (adjustedScore === 1 || wordCount < MIN_WORDS) {
+          if (adjustedScore === 1 || totalWordCount < MIN_WORDS) {
             scaffoldingPrompts = [
               "Add more facts and details about your topic.",
               "Think about what makes your topic special or interesting.",
               "Use words like 'first,' 'next,' and 'also' to connect your ideas.",
             ];
-            if (wordCount < MIN_WORDS) {
-              scaffoldingPrompts.push(`Add more details! Your whole article has ${wordCount} words, but aim for ${MIN_WORDS} words total across all sections.`);
+            if (totalWordCount < MIN_WORDS) {
+              scaffoldingPrompts.push(`Add more details! Your whole article has ${totalWordCount} words, but aim for ${MIN_WORDS} words total across all sections.`);
             }
           }
           
@@ -767,14 +769,14 @@ export const appRouter = router({
           // Apply word count adjustment
           let adjustedScore = Math.max(1, Math.min(3, scoring.score + scoreAdjustment));
           
-          if (adjustedScore === 1 || wordCount < MIN_WORDS) {
+          if (adjustedScore === 1 || totalWordCount < MIN_WORDS) {
             scaffoldingPrompts = [
               "Remind readers what your writing was about.",
               "End with a strong sentence that wraps up your ideas.",
               "Try starting with 'In conclusion...' or 'That's why...'",
             ];
-            if (wordCount < MIN_WORDS) {
-              scaffoldingPrompts.push(`Add more details! Your whole article has ${wordCount} words, but aim for ${MIN_WORDS} words total across all sections.`);
+            if (totalWordCount < MIN_WORDS) {
+              scaffoldingPrompts.push(`Add more details! Your whole article has ${totalWordCount} words, but aim for ${MIN_WORDS} words total across all sections.`);
             }
           }
           
@@ -788,7 +790,7 @@ export const appRouter = router({
           feedback: scoring.feedback,
           suggestions: scoring.suggestions,
           scaffoldingPrompts,
-          wordCount,
+          wordCount: totalWordCount,
           wordCountWarning,
           minWords: MIN_WORDS,
           maxWords: MAX_WORDS,
