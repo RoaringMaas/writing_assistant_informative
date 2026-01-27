@@ -173,3 +173,5 @@
 - [x] Restore previous homepage UI with complete "Step by Step" items (all 4 steps visible)
 - [x] Restore "Get Stars" section with all 3 stars (1, 2, 3 stars)
 - [x] Add visual prompt after paragraph 1 completion to guide users to click "Add Another" before typing paragraph 2
+
+- [x] Update paragraph prompt to appear after EVERY paragraph save (not just first one) to support students writing 3+ paragraphs

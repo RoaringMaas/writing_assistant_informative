@@ -379,10 +379,8 @@ export default function WritingSession() {
     setCurrentParagraph({ topicSentence: "", supportingDetails: "" });
     toast.success("Paragraph saved! 📝");
     
-    // Show prompt to add another paragraph if this is the first one
-    if (updatedSession.bodyParagraphs.length === 1) {
-      setShowAddAnotherPrompt(true);
-    }
+    // Show prompt to add another paragraph after every save
+    setShowAddAnotherPrompt(true);
   };
   
   // Add another paragraph
@@ -971,8 +969,8 @@ export default function WritingSession() {
                 </div>
               )}
               
-              {/* Prompt to add another paragraph after first one */}
-              {showAddAnotherPrompt && session.bodyParagraphs.length === 1 && (
+              {/* Prompt to add another paragraph after every save */}
+              {showAddAnotherPrompt && session.bodyParagraphs.length >= 1 && (
                 <div className="p-4 bg-primary/10 border-2 border-primary rounded-lg animate-pulse">
                   <div className="flex items-start gap-3">
                     <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
@@ -980,10 +978,10 @@ export default function WritingSession() {
                     </div>
                     <div className="flex-1">
                       <p className="font-semibold text-foreground mb-1">
-                        Great job on your first paragraph! 🎉
+                        Paragraph saved! 🎉
                       </p>
                       <p className="text-sm text-muted-foreground mb-3">
-                        Ready to add more details? Click "Add Another" below to write your next paragraph!
+                        Want to add more details? Click "Add Another" below to write your next paragraph, or click "Write Conclusion" when you're done!
                       </p>
                       <Button
                         onClick={handleAddAnotherParagraph}
