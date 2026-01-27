@@ -1136,7 +1136,7 @@ Generate helpful vocabulary words.`,
       .input(z.object({
         saveCode: z.string(),
       }))
-      .query(async ({ input }) => {
+      .mutation(async ({ input }) => {
         const sessionData = await loadSessionByCode(input.saveCode);
         if (!sessionData) {
           throw new TRPCError({

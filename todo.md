@@ -165,3 +165,5 @@
 - [x] Add back button to ArticleDisplay page to return to final score page
 
 - [x] Fix "hooks[lastArg] is not a function" error in handleLoadSession - Changed from query to mutation
+
+- [x] Fix tRPC procedure type mismatch: loadSessionAnonymous changed from query to mutation
