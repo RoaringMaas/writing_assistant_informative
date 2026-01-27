@@ -103,3 +103,18 @@
 - [x] Remove word count penalty from individual section scoring (Hook, Body, Conclusion)
 - [x] Keep word count penalty only for final overall assessment
 - [x] Score each section based on quality alone, not word count
+
+
+## Voice-to-Text Feature (2026-01-26)
+- [x] Create voice-to-text component using Web Speech API
+- [x] Set language to English only
+- [x] Add microphone button next to Hook input field
+- [x] Add microphone button next to Body Paragraph input field (topic sentence and supporting details)
+- [x] Add microphone button next to Conclusion input field
+- [x] Show "Listening..." indicator while recording
+- [x] Display transcribed text in real-time
+- [x] Add "Try again" button if transcription isn't clear
+- [x] Handle microphone permission requests
+- [x] Show error messages if browser doesn't support speech recognition
+- [x] Add visual feedback (pulsing animation) during recording
+- [x] Allow students to edit transcribed text before submitting

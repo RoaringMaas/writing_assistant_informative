@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { VoiceInput } from "@/components/VoiceInput";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -753,13 +754,19 @@ export default function WritingSession() {
                     {hook.trim().split(/\s+/).filter(w => w.length > 0).length} words
                   </span>
                 </div>
-                <Textarea
-                  value={hook}
-                  onChange={(e) => setHook(e.target.value)}
-                  placeholder="Write an interesting sentence to grab your reader's attention..."
-                  className="writing-area"
-                  rows={4}
-                />
+                <div className="flex gap-2">
+                  <Textarea
+                    value={hook}
+                    onChange={(e) => setHook(e.target.value)}
+                    placeholder="Write an interesting sentence to grab your reader's attention..."
+                    className="writing-area flex-1"
+                    rows={4}
+                  />
+                  <VoiceInput
+                    onTranscript={(text) => setHook((prev) => prev ? `${prev} ${text}` : text)}
+                    disabled={checkHookScoreMutation.isPending}
+                  />
+                </div>
               </div>
               
               {isRevising && lastScore && lastScore.score === 1 && (
@@ -899,18 +906,29 @@ export default function WritingSession() {
                     {currentParagraph.topicSentence.trim().split(/\s+/).filter(w => w.length > 0).length} words
                   </span>
                 </div>
-                <Textarea
-                  value={currentParagraph.topicSentence}
-                  onChange={(e) =>
-                    setCurrentParagraph((prev) => ({
-                      ...prev,
-                      topicSentence: e.target.value,
-                    }))
-                  }
-                  placeholder="Write your main idea..."
-                  className="writing-area"
-                  rows={2}
-                />
+                <div className="flex gap-2">
+                  <Textarea
+                    value={currentParagraph.topicSentence}
+                    onChange={(e) =>
+                      setCurrentParagraph((prev) => ({
+                        ...prev,
+                        topicSentence: e.target.value,
+                      }))
+                    }
+                    placeholder="Write your main idea..."
+                    className="writing-area flex-1"
+                    rows={2}
+                  />
+                  <VoiceInput
+                    onTranscript={(text) =>
+                      setCurrentParagraph((prev) => ({
+                        ...prev,
+                        topicSentence: prev.topicSentence ? `${prev.topicSentence} ${text}` : text,
+                      }))
+                    }
+                    disabled={checkBodyScoreMutation.isPending}
+                  />
+                </div>
               </div>
               
               <div>
@@ -922,18 +940,29 @@ export default function WritingSession() {
                     {currentParagraph.supportingDetails.trim().split(/\s+/).filter(w => w.length > 0).length} words
                   </span>
                 </div>
-                <Textarea
-                  value={currentParagraph.supportingDetails}
-                  onChange={(e) =>
-                    setCurrentParagraph((prev) => ({
-                      ...prev,
-                      supportingDetails: e.target.value,
-                    }))
-                  }
-                  placeholder="Add details and facts..."
-                  className="writing-area"
-                  rows={4}
-                />
+                <div className="flex gap-2">
+                  <Textarea
+                    value={currentParagraph.supportingDetails}
+                    onChange={(e) =>
+                      setCurrentParagraph((prev) => ({
+                        ...prev,
+                        supportingDetails: e.target.value,
+                      }))
+                    }
+                    placeholder="Add details and facts..."
+                    className="writing-area flex-1"
+                    rows={4}
+                  />
+                  <VoiceInput
+                    onTranscript={(text) =>
+                      setCurrentParagraph((prev) => ({
+                        ...prev,
+                        supportingDetails: prev.supportingDetails ? `${prev.supportingDetails} ${text}` : text,
+                      }))
+                    }
+                    disabled={checkBodyScoreMutation.isPending}
+                  />
+                </div>
               </div>
               
               {/* Preview Score Display */}
@@ -1062,13 +1091,19 @@ export default function WritingSession() {
                     {conclusion.trim().split(/\s+/).filter(w => w.length > 0).length} words
                   </span>
                 </div>
-                <Textarea
-                  value={conclusion}
-                  onChange={(e) => setConclusion(e.target.value)}
-                  placeholder="Write a sentence or two to wrap up your writing..."
-                  className="writing-area"
-                  rows={4}
-                />
+                <div className="flex gap-2">
+                  <Textarea
+                    value={conclusion}
+                    onChange={(e) => setConclusion(e.target.value)}
+                    placeholder="Write a sentence or two to wrap up your writing..."
+                    className="writing-area flex-1"
+                    rows={4}
+                  />
+                  <VoiceInput
+                    onTranscript={(text) => setConclusion((prev) => prev ? `${prev} ${text}` : text)}
+                    disabled={checkConclusionScoreMutation.isPending}
+                  />
+                </div>
               </div>
               
               {/* Preview Score Display */}
