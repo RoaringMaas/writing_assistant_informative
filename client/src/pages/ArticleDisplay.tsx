@@ -1,23 +1,25 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { trpc } from "@/lib/trpc";
 import { useParams, useLocation } from "wouter";
+import { useState, useEffect } from "react";
 import { Loader2, Home, Download, Sparkles } from "lucide-react";
+import { getSession, type WritingSession } from "@/lib/sessionManager";
 
 export default function ArticleDisplay() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const [, setLocation] = useLocation();
-  const { user, loading: authLoading } = useAuth();
+  const [session, setSession] = useState<WritingSession | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const { data: session, isLoading } = trpc.writing.get.useQuery(
-    { sessionId: parseInt(sessionId || "0") },
-    { enabled: !!sessionId && !!user }
-  );
+  useEffect(() => {
+    const loadedSession = getSession();
+    if (loadedSession && loadedSession.sessionId === sessionId) {
+      setSession(loadedSession);
+    }
+    setLoading(false);
+  }, [sessionId]);
 
-  const paragraphs = session?.paragraphs || [];
-
-  if (authLoading || isLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -63,34 +65,34 @@ export default function ArticleDisplay() {
             <div className="flex items-center justify-center gap-2 mb-3">
               <Sparkles className="w-6 h-6 text-primary" />
               <h1 className="text-3xl md:text-4xl font-bold text-primary">
-                {session.session?.title || "My Article"}
+                {session.title || "My Article"}
               </h1>
               <Sparkles className="w-6 h-6 text-primary" />
             </div>
             <p className="text-sm text-muted-foreground">
-              By {user?.name || "Young Writer"} • {new Date().toLocaleDateString()}
+              By Young Writer • {new Date().toLocaleDateString()}
             </p>
           </div>
 
           {/* Introduction */}
-          {session.session?.hook && (
+          {session.hook && (
             <div className="mb-8">
               <h2 className="text-xl font-semibold text-primary mb-3 flex items-center gap-2">
                 <span className="text-2xl">🎣</span>
                 Introduction
               </h2>
-              <p className="text-lg leading-relaxed indent-8">{session.session.hook}</p>
+              <p className="text-lg leading-relaxed indent-8">{session.hook}</p>
             </div>
           )}
 
           {/* Body Paragraphs */}
-          {paragraphs && paragraphs.length > 0 && (
+          {session.bodyParagraphs && session.bodyParagraphs.length > 0 && (
             <div className="mb-8 space-y-6">
               <h2 className="text-xl font-semibold text-primary mb-3 flex items-center gap-2">
                 <span className="text-2xl">📚</span>
                 Main Ideas
               </h2>
-              {paragraphs.map((para: any, index: number) => (
+              {session.bodyParagraphs.map((para, index) => (
                 <div key={para.id} className="space-y-2">
                   {para.topicSentence && (
                     <p className="text-lg leading-relaxed indent-8 font-medium">
@@ -108,13 +110,13 @@ export default function ArticleDisplay() {
           )}
 
           {/* Conclusion */}
-          {session.session?.conclusion && (
+          {session.conclusion && (
             <div className="mb-8">
               <h2 className="text-xl font-semibold text-primary mb-3 flex items-center gap-2">
                 <span className="text-2xl">🎁</span>
                 Conclusion
               </h2>
-              <p className="text-lg leading-relaxed indent-8">{session.session.conclusion}</p>
+              <p className="text-lg leading-relaxed indent-8">{session.conclusion}</p>
             </div>
           )}
 

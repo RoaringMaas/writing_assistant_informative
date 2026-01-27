@@ -1,39 +1,16 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { trpc } from "@/lib/trpc";
-import { getLoginUrl } from "@/const";
 import { useLocation } from "wouter";
-import { Loader2, PenLine, BookOpen, Star, Sparkles, History } from "lucide-react";
+import { PenLine, BookOpen, Star, Sparkles } from "lucide-react";
+import { createSession } from "@/lib/sessionManager";
 
 export default function Home() {
-  const { user, loading: authLoading, isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
-  
-  const createSession = trpc.writing.create.useMutation({
-    onSuccess: (data) => {
-      setLocation(`/write/${data.sessionId}`);
-    },
-  });
 
   const handleStartWriting = () => {
-    if (!isAuthenticated) {
-      window.location.href = getLoginUrl();
-      return;
-    }
-    createSession.mutate();
+    const session = createSession();
+    setLocation(`/write/${session.sessionId}`);
   };
-
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-accent/5">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-lg text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
@@ -50,32 +27,7 @@ export default function Home() {
             </div>
           </div>
           
-          <div className="flex items-center gap-4">
-            {isAuthenticated ? (
-              <>
-                <Button
-                  variant="ghost"
-                  onClick={() => setLocation("/history")}
-                  className="gap-2"
-                >
-                  <History className="w-4 h-4" />
-                  My Writing
-                </Button>
-                <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-card border">
-                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-                    <span className="text-sm font-bold text-primary">
-                      {user?.name?.charAt(0) || "S"}
-                    </span>
-                  </div>
-                  <span className="text-sm font-medium">{user?.name || "Student"}</span>
-                </div>
-              </>
-            ) : (
-              <Button onClick={() => window.location.href = getLoginUrl()}>
-                Sign In
-              </Button>
-            )}
-          </div>
+          {/* No login required - anonymous version */}
         </nav>
       </header>
 
@@ -100,20 +52,10 @@ export default function Home() {
           <Button
             size="lg"
             onClick={handleStartWriting}
-            disabled={createSession.isPending}
             className="btn-fun text-lg px-8 py-6 gap-3"
           >
-            {createSession.isPending ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Getting Ready...
-              </>
-            ) : (
-              <>
-                <PenLine className="w-5 h-5" />
-                Start Writing!
-              </>
-            )}
+            <PenLine className="w-5 h-5" />
+            Start Writing!
           </Button>
         </div>
 

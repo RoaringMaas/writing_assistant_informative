@@ -118,3 +118,23 @@
 - [x] Show error messages if browser doesn't support speech recognition
 - [x] Add visual feedback (pulsing animation) during recording
 - [x] Allow students to edit transcribed text before submitting
+
+
+## Anonymous No-Login Version (2026-01-27)
+- [x] Remove all authentication requirements (Manus OAuth)
+- [x] Remove "My Writing" link from header
+- [x] Remove user profile display
+- [x] Implement localStorage-based session management
+- [x] Remove all database calls from frontend
+- [x] Keep LLM scoring/feedback backend endpoints (no user context needed)
+- [x] Add anonymous backend procedures for scoring, feedback, word bank, and assessment
+- [x] Rewrite WritingSession.tsx to use localStorage instead of tRPC database queries
+- [x] Keep all writing features (Hook, Body, Conclusion, scoring, feedback)
+- [x] Keep voice-to-text functionality
+- [x] Keep real-time scoring with rubric
+- [x] Keep certificate generation
+- [x] Keep word bank feature
+- [x] Sessions stored in browser localStorage (cleared on browser close)
+- [x] Update ArticleDisplay.tsx to use localStorage
+- [x] Update Certificate.tsx to use localStorage
+- [x] Test anonymous version - all features working

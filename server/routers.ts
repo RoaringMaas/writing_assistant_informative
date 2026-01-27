@@ -268,13 +268,13 @@ export const appRouter = router({
   // Writing Session Management
   writing: router({
     // Create a new writing session
-    create: protectedProcedure.mutation(async ({ ctx }) => {
+    create: publicProcedure.mutation(async ({ ctx }) => {
       const sessionId = await createWritingSession(ctx.user.id);
       return { sessionId };
     }),
 
     // Get current session
-    get: protectedProcedure
+    get: publicProcedure
       .input(z.object({ sessionId: z.number() }))
       .query(async ({ ctx, input }) => {
         const session = await getWritingSession(input.sessionId, ctx.user.id);
@@ -284,12 +284,12 @@ export const appRouter = router({
       }),
 
     // List all sessions for user
-    list: protectedProcedure.query(async ({ ctx }) => {
+    list: publicProcedure.query(async ({ ctx }) => {
       return getUserWritingSessions(ctx.user.id);
     }),
 
     // Delete a session
-    delete: protectedProcedure
+    delete: publicProcedure
       .input(z.object({ sessionId: z.number() }))
       .mutation(async ({ ctx, input }) => {
         await deleteWritingSession(input.sessionId, ctx.user.id);
@@ -297,7 +297,7 @@ export const appRouter = router({
       }),
 
     // Step 1: Set topic
-    setTopic: protectedProcedure
+    setTopic: publicProcedure
       .input(z.object({
         sessionId: z.number(),
         topic: z.string().min(1).max(255),
@@ -317,7 +317,7 @@ export const appRouter = router({
       }),
 
     // Step 2: Save introduction/hook and score it
-    saveHook: protectedProcedure
+    saveHook: publicProcedure
       .input(z.object({
         sessionId: z.number(),
         hook: z.string().min(1),
@@ -358,7 +358,7 @@ export const appRouter = router({
       }),
 
     // Step 3: Save body paragraph
-    saveBodyParagraph: protectedProcedure
+    saveBodyParagraph: publicProcedure
       .input(z.object({
         sessionId: z.number(),
         paragraphId: z.number(),
@@ -423,7 +423,7 @@ export const appRouter = router({
       }),
 
     // Add another body paragraph
-    addParagraph: protectedProcedure
+    addParagraph: publicProcedure
       .input(z.object({ sessionId: z.number() }))
       .mutation(async ({ ctx, input }) => {
         const session = await getWritingSession(input.sessionId, ctx.user.id);
@@ -437,7 +437,7 @@ export const appRouter = router({
       }),
 
     // Move to conclusion step
-    moveToConclusion: protectedProcedure
+    moveToConclusion: publicProcedure
       .input(z.object({ sessionId: z.number() }))
       .mutation(async ({ ctx, input }) => {
         const session = await getWritingSession(input.sessionId, ctx.user.id);
@@ -448,7 +448,7 @@ export const appRouter = router({
       }),
 
     // Step 4: Save conclusion
-    saveConclusion: protectedProcedure
+    saveConclusion: publicProcedure
       .input(z.object({
         sessionId: z.number(),
         conclusion: z.string().min(1),
@@ -478,7 +478,7 @@ export const appRouter = router({
       }),
 
     // Step 5: Get overall assessment
-    getOverallAssessment: protectedProcedure
+    getOverallAssessment: publicProcedure
       .input(z.object({ sessionId: z.number() }))
       .mutation(async ({ ctx, input }) => {
         const session = await getWritingSession(input.sessionId, ctx.user.id);
@@ -545,7 +545,7 @@ export const appRouter = router({
       }),
 
     // Update self-assessment scores
-    updateSelfAssessment: protectedProcedure
+    updateSelfAssessment: publicProcedure
       .input(z.object({
         sessionId: z.number(),
         criterion: z.enum(["titleSubtitles", "hook", "relevantInfo", "transitions", "accuracy", "vocabulary"]),
@@ -574,7 +574,7 @@ export const appRouter = router({
       }),
 
     // Teacher score update (for teachers/admins)
-    updateTeacherScore: protectedProcedure
+    updateTeacherScore: publicProcedure
       .input(z.object({
         sessionId: z.number(),
         criterion: z.enum(["titleSubtitles", "hook", "relevantInfo", "transitions", "accuracy", "vocabulary"]),
@@ -609,7 +609,7 @@ export const appRouter = router({
       }),
 
     // Revise a section
-    reviseSection: protectedProcedure
+    reviseSection: publicProcedure
       .input(z.object({
         sessionId: z.number(),
         sectionType: z.enum(["hook", "body", "conclusion"]),
@@ -681,7 +681,7 @@ export const appRouter = router({
       }),
 
     // Preview score (Check My Score button)
-    previewScore: protectedProcedure
+    previewScore: publicProcedure
       .input(z.object({
         sessionId: z.number(),
         sectionType: z.enum(["hook", "body", "conclusion"]),
@@ -800,7 +800,7 @@ export const appRouter = router({
       }),
 
     // Get intelligent feedback
-    getIntelligentFeedback: protectedProcedure
+    getIntelligentFeedback: publicProcedure
       .input(z.object({
         sessionId: z.number(),
         currentSection: z.string(),
@@ -835,7 +835,7 @@ Give them helpful, encouraging tips to improve.`,
       }),
 
     // Generate topic-specific word bank
-    getWordBank: protectedProcedure
+    getWordBank: publicProcedure
       .input(z.object({
         topic: z.string(),
       }))
@@ -882,6 +882,226 @@ Generate helpful vocabulary words.`,
         const result = JSON.parse(contentStr);
         return {
           words: result.words || [],
+        };
+      }),
+
+    // ===== ANONYMOUS PROCEDURES (No authentication required) =====
+    
+    // Anonymous: Preview score for Check My Score button
+    previewScoreAnonymous: publicProcedure
+      .input(z.object({
+        topic: z.string(),
+        title: z.string(),
+        currentSection: z.enum(["hook", "body", "conclusion"]),
+        currentContent: z.string(),
+        totalWordCount: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        const MIN_WORDS = 120;
+        const MAX_WORDS = 300;
+        
+        let scoring: { score: number; feedback: string; suggestions: string[] };
+        let scaffoldingPrompts: string[] = [];
+        let wordCountWarning = "";
+        
+        if (input.totalWordCount < MIN_WORDS) {
+          wordCountWarning = `Your whole article has ${input.totalWordCount} words. Try to write at least ${MIN_WORDS} words total to show more details!`;
+        } else if (input.totalWordCount > MAX_WORDS) {
+          wordCountWarning = `Your whole article has ${input.totalWordCount} words. Try to keep it under ${MAX_WORDS} words to stay focused!`;
+        }
+        
+        if (input.currentSection === "hook") {
+          scoring = await scoreContent(
+            "Hook",
+            input.currentContent,
+            input.topic,
+            "3=effectively grabs attention and introduces topic, 2=present but weak/not entirely relevant, 1=no hook or fails to engage"
+          );
+          
+          if (scoring.score === 1 || input.totalWordCount < MIN_WORDS) {
+            scaffoldingPrompts = [
+              "Try starting with a question that makes readers curious!",
+              "Share an amazing fact about your topic.",
+              "Use words like 'Did you know...' or 'Imagine...' to grab attention.",
+            ];
+            if (input.totalWordCount < MIN_WORDS) {
+              scaffoldingPrompts.push(`Add more details! Your whole article has ${input.totalWordCount} words, but aim for ${MIN_WORDS} words total across all sections.`);
+            }
+          }
+        } else if (input.currentSection === "body") {
+          scoring = await scoreContent(
+            "Relevant Information",
+            input.currentContent,
+            input.topic,
+            "3=includes multiple accurate, relevant facts/details, 2=some relevant info but limited, 1=lacks relevant information or off-topic"
+          );
+          
+          if (scoring.score === 1 || input.totalWordCount < MIN_WORDS) {
+            scaffoldingPrompts = [
+              "Add more facts and details about your topic.",
+              "Think about what makes your topic special or interesting.",
+              "Use words like 'first,' 'next,' and 'also' to connect your ideas.",
+            ];
+            if (input.totalWordCount < MIN_WORDS) {
+              scaffoldingPrompts.push(`Add more details! Your whole article has ${input.totalWordCount} words, but aim for ${MIN_WORDS} words total across all sections.`);
+            }
+          }
+        } else {
+          scoring = await scoreContent(
+            "Conclusion Cohesion",
+            input.currentContent,
+            input.topic,
+            "3=effectively wraps up the writing with clear connection to topic, 2=present but weak connection, 1=does not effectively conclude"
+          );
+          
+          if (scoring.score === 1 || input.totalWordCount < MIN_WORDS) {
+            scaffoldingPrompts = [
+              "Remind readers what your writing was about.",
+              "End with a strong sentence that wraps up your ideas.",
+              "Try starting with 'In conclusion...' or 'That's why...'",
+            ];
+            if (input.totalWordCount < MIN_WORDS) {
+              scaffoldingPrompts.push(`Add more details! Your whole article has ${input.totalWordCount} words, but aim for ${MIN_WORDS} words total across all sections.`);
+            }
+          }
+        }
+        
+        return {
+          score: scoring.score,
+          feedback: scoring.feedback,
+          suggestions: scoring.suggestions,
+          scaffoldingPrompts,
+          wordCount: input.totalWordCount,
+          wordCountWarning,
+          minWords: MIN_WORDS,
+          maxWords: MAX_WORDS,
+        };
+      }),
+
+    // Anonymous: Get intelligent feedback
+    getIntelligentFeedbackAnonymous: publicProcedure
+      .input(z.object({
+        topic: z.string(),
+        title: z.string(),
+        hook: z.string(),
+        bodyParagraphs: z.array(z.object({
+          topicSentence: z.string(),
+          supportingDetails: z.string(),
+        })),
+        conclusion: z.string(),
+        currentSection: z.string(),
+        currentContent: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const response = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `You are a friendly, encouraging writing helper for young students (ages 6-9). 
+Give helpful tips to improve their writing. Keep suggestions simple and positive.
+Use short sentences. Be specific but gentle. Maximum 3 tips.`,
+            },
+            {
+              role: "user",
+              content: `The student is writing about: ${input.topic}
+They are working on: ${input.currentSection}
+Their writing so far: ${input.currentContent}
+
+Give them helpful, encouraging tips to improve.`,
+            },
+          ],
+        });
+        
+        return {
+          feedback: response.choices[0].message.content || "Keep up the great work!",
+        };
+      }),
+
+    // Anonymous: Get word bank
+    getWordBankAnonymous: publicProcedure
+      .input(z.object({
+        topic: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const response = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `You are a helpful vocabulary assistant for young students (ages 6-9) writing informational texts.
+Generate a list of 15-20 relevant, grade-appropriate words related to the topic.
+Include nouns, verbs, and adjectives. Keep words simple but interesting.
+Return ONLY a JSON array of words, nothing else.`,
+            },
+            {
+              role: "user",
+              content: `Topic: ${input.topic}
+
+Generate helpful vocabulary words.`,
+            },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "word_bank",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  words: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "List of vocabulary words",
+                  },
+                },
+                required: ["words"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+        
+        const rawContent = response.choices[0].message.content;
+        const contentStr = typeof rawContent === 'string' ? rawContent : '{}';
+        const result = JSON.parse(contentStr);
+        return {
+          words: result.words || [],
+        };
+      }),
+
+    // Anonymous: Perform overall assessment
+    performOverallAssessmentAnonymous: publicProcedure
+      .input(z.object({
+        topic: z.string(),
+        title: z.string(),
+        hook: z.string(),
+        bodyParagraphs: z.array(z.object({
+          topicSentence: z.string(),
+          supportingDetails: z.string(),
+        })),
+        conclusion: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const assessment = await performOverallAssessment(
+          input.topic,
+          input.title,
+          input.hook,
+          input.bodyParagraphs,
+          input.conclusion
+        );
+        
+        return {
+          titleSubtitles: assessment.scores.titleSubtitles,
+          hook: assessment.scores.hook,
+          relevantInfo: assessment.scores.relevantInfo,
+          transitions: assessment.scores.transitions,
+          accuracy: assessment.scores.accuracy,
+          vocabulary: assessment.scores.vocabulary,
+          feedback: assessment.feedback,
+          strengths: assessment.strengths,
+          areasForGrowth: assessment.areasForGrowth,
+          overallFeedback: assessment.overallFeedback,
+          totalWordCount: assessment.totalWordCount,
+          wordCountStatus: assessment.wordCountStatus,
         };
       }),
   }),

@@ -1,4 +1,3 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { VoiceInput } from "@/components/VoiceInput";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,9 +5,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { trpc } from "@/lib/trpc";
 import { useLocation, useParams } from "wouter";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
   Loader2,
   PenLine,
@@ -18,11 +16,20 @@ import {
   Sparkles,
   CheckCircle2,
   Home,
-  RefreshCw,
   Lightbulb,
-  Award,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  getSession,
+  saveSession,
+  updateSession,
+  addBodyParagraph,
+  updateBodyParagraph,
+  getTotalWordCount,
+  type WritingSession as WritingSessionType,
+  type BodyParagraph,
+} from "@/lib/sessionManager";
+import { trpc } from "@/lib/trpc";
 
 // Step configuration
 const STEPS = [
@@ -96,13 +103,20 @@ function ScaffoldingPrompt({ prompts, onDismiss }: ScaffoldingPromptProps) {
 export default function WritingSession() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const [, setLocation] = useLocation();
-  const { isAuthenticated, loading: authLoading } = useAuth();
+  
+  // Session state
+  const [session, setSession] = useState<WritingSessionType | null>(null);
+  const [loading, setLoading] = useState(true);
   
   // Form state
   const [topic, setTopic] = useState("");
   const [title, setTitle] = useState("");
+  const [hook, setHook] = useState("");
+  const [currentParagraphIndex, setCurrentParagraphIndex] = useState(0);
+  const [currentParagraph, setCurrentParagraph] = useState({ topicSentence: "", supportingDetails: "" });
+  const [conclusion, setConclusion] = useState("");
   
-  // Check My Score state
+  // Score preview state
   const [hookPreviewScore, setHookPreviewScore] = useState<{
     score: number;
     feedback: string;
@@ -121,381 +135,432 @@ export default function WritingSession() {
     scaffolding?: string[];
     aiFeedback?: string;
   } | null>(null);
-  const [hook, setHook] = useState("");
-  const [currentParagraph, setCurrentParagraph] = useState({ topicSentence: "", supportingDetails: "" });
-  const [conclusion, setConclusion] = useState("");
-  const [currentParagraphIndex, setCurrentParagraphIndex] = useState(0);
   
   // UI state
   const [scaffoldingPrompts, setScaffoldingPrompts] = useState<string[]>([]);
   const [showScaffolding, setShowScaffolding] = useState(false);
-  const [lastScore, setLastScore] = useState<{ score: number; feedback: string; label: string } | null>(null);
-  const [isRevising, setIsRevising] = useState(false);
   const [showHelpDialog, setShowHelpDialog] = useState(false);
   const [helpContent, setHelpContent] = useState<{ tips: string[]; feedback?: string }>({ tips: [] });
   const [showWordBank, setShowWordBank] = useState(false);
+  const [wordBank, setWordBank] = useState<string[]>([]);
   
-  // Fetch session data
-  const { data: sessionData, isLoading, refetch } = trpc.writing.get.useQuery(
-    { sessionId: parseInt(sessionId || "0") },
-    { enabled: !!sessionId && isAuthenticated }
-  );
+  // Backend mutations (still using tRPC for LLM scoring)
+  const previewScoreMutation = trpc.writing.previewScoreAnonymous.useMutation();
+  const intelligentFeedbackMutation = trpc.writing.getIntelligentFeedbackAnonymous.useMutation();
+  const wordBankMutation = trpc.writing.getWordBankAnonymous.useMutation();
+  const assessmentMutation = trpc.writing.performOverallAssessmentAnonymous.useMutation();
   
-  const session = sessionData?.session;
-  const paragraphs = sessionData?.paragraphs || [];
-  const currentStep = session?.currentStep || 1;
+  // Load session from localStorage
+  useEffect(() => {
+    const loadedSession = getSession();
+    if (loadedSession && loadedSession.sessionId === sessionId) {
+      setSession(loadedSession);
+      setTopic(loadedSession.topic);
+      setTitle(loadedSession.title);
+      setHook(loadedSession.hook);
+      setConclusion(loadedSession.conclusion);
+      
+      // Load current paragraph if editing
+      if (loadedSession.bodyParagraphs.length > 0) {
+        const currentPara = loadedSession.bodyParagraphs[currentParagraphIndex];
+        if (currentPara) {
+          setCurrentParagraph({
+            topicSentence: currentPara.topicSentence,
+            supportingDetails: currentPara.supportingDetails,
+          });
+        }
+      }
+    }
+    setLoading(false);
+  }, [sessionId, currentParagraphIndex]);
   
-  // Word bank query
-  const { data: wordBankData } = trpc.writing.getWordBank.useQuery(
-    { topic: session?.topic || "" },
-    { enabled: !!session?.topic && currentStep >= 2 }
-  );
-  const wordBank = wordBankData?.words || [];
+  // Load word bank when topic is set
+  useEffect(() => {
+    if (session?.topic && session.currentStep >= 2 && session.currentStep <= 4) {
+      wordBankMutation.mutate(
+        { topic: session.topic },
+        {
+          onSuccess: (data) => {
+            setWordBank(data.words || []);
+          },
+        }
+      );
+    }
+  }, [session?.topic, session?.currentStep]);
   
-  // Mutations
-  const setTopicMutation = trpc.writing.setTopic.useMutation({
-    onSuccess: () => {
-      refetch();
+  // Handle topic submission
+  const handleTopicSubmit = () => {
+    if (!topic.trim() || !title.trim()) {
+      toast.error("Please fill in both topic and title!");
+      return;
+    }
+    
+    const updated = updateSession({
+      topic: topic.trim(),
+      title: title.trim(),
+      currentStep: 2,
+    });
+    
+    if (updated) {
+      setSession(updated);
       toast.success("Great topic! Let's write! ✨");
-    },
-  });
+    }
+  };
   
-  const saveHookMutation = trpc.writing.saveHook.useMutation({
-    onSuccess: (data) => {
-      setLastScore({ score: data.score, feedback: data.feedback, label: "Hook" });
-      if (data.needsScaffolding && data.scaffoldingPrompts.length) {
-        setScaffoldingPrompts(data.scaffoldingPrompts);
-        setShowScaffolding(true);
-      }
-      refetch();
-    },
-  });
-  
-  const saveBodyMutation = trpc.writing.saveBodyParagraph.useMutation({
-    onSuccess: (data) => {
-      const avgScore = Math.round((data.relevantInfoScore + data.transitionScore) / 2);
-      setLastScore({ 
-        score: avgScore, 
-        feedback: `${data.relevantInfoFeedback} ${data.transitionFeedback}`, 
-        label: "Body Paragraph" 
+  // Check hook score
+  const handleCheckHookScore = async () => {
+    if (!hook.trim() || !session) {
+      toast.error("Please write your hook first!");
+      return;
+    }
+    
+    try {
+      const fullText = hook + " " + session.bodyParagraphs.map(p => 
+        `${p.topicSentence} ${p.supportingDetails}`
+      ).join(" ") + " " + session.conclusion;
+      
+      const totalWords = fullText.trim().split(/\s+/).filter(w => w.length > 0).length;
+      
+      const scoreResult = await previewScoreMutation.mutateAsync({
+        topic: session.topic,
+        title: session.title,
+        currentSection: "hook",
+        currentContent: hook,
+        totalWordCount: totalWords,
       });
-      if (data.needsScaffolding && data.scaffoldingPrompts.length) {
-        setScaffoldingPrompts(data.scaffoldingPrompts);
-        setShowScaffolding(true);
-      }
-      setCurrentParagraph({ topicSentence: "", supportingDetails: "" });
-      refetch();
-    },
-  });
-  
-  const addParagraphMutation = trpc.writing.addParagraph.useMutation({
-    onSuccess: (data) => {
-      setCurrentParagraphIndex(data.orderIndex);
-      setCurrentParagraph({ topicSentence: "", supportingDetails: "" });
-      refetch();
-      toast.success("New paragraph added! Keep writing! 📝");
-    },
-  });
-  
-  const moveToConclusionMutation = trpc.writing.moveToConclusion.useMutation({
-    onSuccess: () => {
-      refetch();
-    },
-  });
-  
-  const saveConclusionMutation = trpc.writing.saveConclusion.useMutation({
-    onSuccess: (data) => {
-      setLastScore({ score: data.score, feedback: data.feedback, label: "Conclusion" });
-      refetch();
-    },
-  });
-  
-  const getAssessmentMutation = trpc.writing.getOverallAssessment.useMutation();
-  
-  const getIntelligentFeedbackMutation = trpc.writing.getIntelligentFeedback.useMutation();
-  
-  // Check My Score mutations
-  const checkHookScoreMutation = trpc.writing.previewScore.useMutation({
-    onSuccess: async (data) => {
+      
       let aiFeedback: string | undefined;
       try {
-        const result = await getIntelligentFeedbackMutation.mutateAsync({
-          sessionId: parseInt(sessionId || "0"),
+        const feedbackResult = await intelligentFeedbackMutation.mutateAsync({
+          topic: session.topic,
+          title: session.title,
+          hook: session.hook,
+          bodyParagraphs: session.bodyParagraphs.map(p => ({
+            topicSentence: p.topicSentence,
+            supportingDetails: p.supportingDetails,
+          })),
+          conclusion: session.conclusion,
           currentSection: "hook",
           currentContent: hook,
         });
-        aiFeedback = typeof result.feedback === 'string' ? result.feedback : undefined;
+        aiFeedback = typeof feedbackResult.feedback === 'string' ? feedbackResult.feedback : undefined;
       } catch (error) {
-        // If AI feedback fails, just use scaffolding prompts
+        // AI feedback is optional
       }
       
       setHookPreviewScore({
-        score: data.score,
-        feedback: data.feedback,
-        scaffolding: data.scaffoldingPrompts,
+        score: scoreResult.score,
+        feedback: scoreResult.feedback,
+        scaffolding: scoreResult.scaffoldingPrompts,
         aiFeedback,
       });
-      if (data.score === 1 && data.scaffoldingPrompts.length > 0) {
-        setScaffoldingPrompts(data.scaffoldingPrompts);
-        setShowScaffolding(true);
-      }
-    },
-    onError: () => {
-      toast.error("Couldn't check score. Try again!");
-    },
-  });
-  
-  const checkBodyScoreMutation = trpc.writing.previewScore.useMutation({
-    onSuccess: async (data) => {
-      let aiFeedback: string | undefined;
-      try {
-        const result = await getIntelligentFeedbackMutation.mutateAsync({
-          sessionId: parseInt(sessionId || "0"),
-          currentSection: "body",
-          currentContent: currentParagraph.topicSentence + " " + currentParagraph.supportingDetails,
-        });
-        aiFeedback = typeof result.feedback === 'string' ? result.feedback : undefined;
-      } catch (error) {
-        // If AI feedback fails, just use scaffolding prompts
-      }
       
-      setBodyPreviewScore({
-        score: data.score,
-        feedback: data.feedback,
-        scaffolding: data.scaffoldingPrompts,
-        aiFeedback,
-      });
-      if (data.score === 1 && data.scaffoldingPrompts.length > 0) {
-        setScaffoldingPrompts(data.scaffoldingPrompts);
+      if (scoreResult.score === 1 && scoreResult.scaffoldingPrompts && scoreResult.scaffoldingPrompts.length > 0) {
+        setScaffoldingPrompts(scoreResult.scaffoldingPrompts);
         setShowScaffolding(true);
       }
-    },
-    onError: () => {
+    } catch (error) {
       toast.error("Couldn't check score. Try again!");
-    },
-  });
-  
-  const checkConclusionScoreMutation = trpc.writing.previewScore.useMutation({
-    onSuccess: async (data) => {
-      let aiFeedback: string | undefined;
-      try {
-        const result = await getIntelligentFeedbackMutation.mutateAsync({
-          sessionId: parseInt(sessionId || "0"),
-          currentSection: "conclusion",
-          currentContent: conclusion,
-        });
-        aiFeedback = typeof result.feedback === 'string' ? result.feedback : undefined;
-      } catch (error) {
-        // If AI feedback fails, just use scaffolding prompts
-      }
-      
-      setConclusionPreviewScore({
-        score: data.score,
-        feedback: data.feedback,
-        scaffolding: data.scaffoldingPrompts,
-        aiFeedback,
-      });
-      if (data.score === 1 && data.scaffoldingPrompts.length > 0) {
-        setScaffoldingPrompts(data.scaffoldingPrompts);
-        setShowScaffolding(true);
-      }
-    },
-    onError: () => {
-      toast.error("Couldn't check score. Try again!");
-    },
-  });
-  
-  const reviseSectionMutation = trpc.writing.reviseSection.useMutation({
-    onSuccess: (data) => {
-      setLastScore({ score: data.score, feedback: data.feedback, label: "Revised Section" });
-      setIsRevising(false);
-      refetch();
-      toast.success("Great revision! 🌟");
-    },
-  });
-  
-  // Load existing data into form
-  useEffect(() => {
-    if (session) {
-      if (session.topic) setTopic(session.topic);
-      if (session.title) setTitle(session.title);
-      if (session.hook) setHook(session.hook);
-      if (session.conclusion) setConclusion(session.conclusion);
     }
-  }, [session]);
-  
-  // Load current paragraph data
-  useEffect(() => {
-    if (paragraphs.length > 0 && currentParagraphIndex < paragraphs.length) {
-      const p = paragraphs[currentParagraphIndex];
-      if (p.topicSentence || p.supportingDetails) {
-        setCurrentParagraph({
-          topicSentence: p.topicSentence || "",
-          supportingDetails: p.supportingDetails || "",
-        });
-      }
-    }
-  }, [paragraphs, currentParagraphIndex]);
-  
-  // Auto-save with debounce
-  const autoSave = useCallback(() => {
-    // Auto-save is handled by the mutations
-  }, []);
-  
-  // Get intelligent feedback
-  const handleGetHelp = async () => {
-    if (!session) return;
-    
-    // General tips for each step
-    const generalTips: Record<number, string[]> = {
-      1: [
-        "Pick a topic you know a lot about!",
-        "Your title should tell readers what your writing is about.",
-        "Think about what makes your topic interesting or special.",
-      ],
-      2: [
-        "Start with a question to make readers curious.",
-        "Share an amazing fact about your topic.",
-        "Use words like 'Did you know...' or 'Imagine...' to grab attention.",
-        "Make sure your hook connects to your topic.",
-      ],
-      3: [
-        "Start each paragraph with a main idea about your topic.",
-        "Add facts and details to support your main idea.",
-        "Use words like 'first,' 'next,' and 'also' to connect ideas.",
-        "Make sure all your information is about your topic.",
-      ],
-      4: [
-        "Remind readers what your writing was about.",
-        "End with a strong sentence that wraps up your ideas.",
-        "Try starting with 'In conclusion...' or 'That's why...'",
-        "Leave readers thinking about your topic.",
-      ],
-      5: [
-        "Read through your whole writing.",
-        "Check if all parts connect to your topic.",
-        "Be proud of your hard work!",
-      ],
-    };
-    
-    let currentContent = "";
-    let currentSection = "";
-    
-    if (currentStep === 2) {
-      currentContent = hook;
-      currentSection = "introduction hook";
-    } else if (currentStep === 3) {
-      currentContent = `${currentParagraph.topicSentence}\n${currentParagraph.supportingDetails}`;
-      currentSection = "body paragraph";
-    } else if (currentStep === 4) {
-      currentContent = conclusion;
-      currentSection = "conclusion";
-    }
-    
-    // Show general tips first
-    const tips = generalTips[currentStep] || [];
-    
-    // If they have content, get AI feedback too
-    let aiFeedback: string | undefined;
-    if (currentContent.trim() && currentStep >= 2 && currentStep <= 4) {
-      try {
-        const result = await getIntelligentFeedbackMutation.mutateAsync({
-          sessionId: parseInt(sessionId || "0"),
-          currentSection,
-          currentContent,
-        });
-        aiFeedback = typeof result.feedback === 'string' ? result.feedback : undefined;
-      } catch (error) {
-        // If AI feedback fails, just show general tips
-      }
-    }
-    
-    setHelpContent({ tips, feedback: aiFeedback });
-    setShowHelpDialog(true);
   };
   
-  // Handle step submissions
-  const handleTopicSubmit = () => {
-    if (!topic.trim() || !title.trim()) {
-      toast.error("Please enter both a topic and title!");
-      return;
-    }
-    setTopicMutation.mutate({
-      sessionId: parseInt(sessionId || "0"),
-      topic: topic.trim(),
-      title: title.trim(),
-    });
-  };
-  
-  const handleHookSubmit = () => {
+  // Save hook and move to next step
+  const handleSaveHook = () => {
     if (!hook.trim()) {
       toast.error("Please write your hook first!");
       return;
     }
-    saveHookMutation.mutate({
-      sessionId: parseInt(sessionId || "0"),
+    
+    const updated = updateSession({
       hook: hook.trim(),
+      currentStep: 3,
     });
+    
+    if (updated) {
+      setSession(updated);
+      toast.success("Great hook! Now let's add body paragraphs! 📝");
+    }
   };
   
-  const handleBodySubmit = () => {
-    if (!currentParagraph.topicSentence.trim() || !currentParagraph.supportingDetails.trim()) {
-      toast.error("Please fill in both parts!");
+  // Check body score
+  const handleCheckBodyScore = async () => {
+    if (!currentParagraph.topicSentence.trim() || !currentParagraph.supportingDetails.trim() || !session) {
+      toast.error("Please write both topic sentence and details!");
       return;
     }
     
-    const currentParagraphId = paragraphs[currentParagraphIndex]?.id;
-    if (!currentParagraphId) {
-      toast.error("Something went wrong. Please try again.");
+    try {
+      const fullText = session.hook + " " + session.bodyParagraphs.map(p => 
+        `${p.topicSentence} ${p.supportingDetails}`
+      ).join(" ") + " " + currentParagraph.topicSentence + " " + currentParagraph.supportingDetails + " " + session.conclusion;
+      
+      const totalWords = fullText.trim().split(/\s+/).filter(w => w.length > 0).length;
+      
+      const scoreResult = await previewScoreMutation.mutateAsync({
+        topic: session.topic,
+        title: session.title,
+        currentSection: "body",
+        currentContent: currentParagraph.topicSentence + " " + currentParagraph.supportingDetails,
+        totalWordCount: totalWords,
+      });
+      
+      let aiFeedback: string | undefined;
+      try {
+        const feedbackResult = await intelligentFeedbackMutation.mutateAsync({
+          topic: session.topic,
+          title: session.title,
+          hook: session.hook,
+          bodyParagraphs: session.bodyParagraphs.map(p => ({
+            topicSentence: p.topicSentence,
+            supportingDetails: p.supportingDetails,
+          })),
+          conclusion: session.conclusion,
+          currentSection: "body",
+          currentContent: currentParagraph.topicSentence + " " + currentParagraph.supportingDetails,
+        });
+        aiFeedback = typeof feedbackResult.feedback === 'string' ? feedbackResult.feedback : undefined;
+      } catch (error) {
+        // AI feedback is optional
+      }
+      
+      setBodyPreviewScore({
+        score: scoreResult.score,
+        feedback: scoreResult.feedback,
+        scaffolding: scoreResult.scaffoldingPrompts,
+        aiFeedback,
+      });
+      
+      if (scoreResult.score === 1 && scoreResult.scaffoldingPrompts && scoreResult.scaffoldingPrompts.length > 0) {
+        setScaffoldingPrompts(scoreResult.scaffoldingPrompts);
+        setShowScaffolding(true);
+      }
+    } catch (error) {
+      toast.error("Couldn't check score. Try again!");
+    }
+  };
+  
+  // Save body paragraph
+  const handleSaveBodyParagraph = () => {
+    if (!currentParagraph.topicSentence.trim() || !currentParagraph.supportingDetails.trim() || !session) {
+      toast.error("Please write both topic sentence and details!");
       return;
     }
     
-    saveBodyMutation.mutate({
-      sessionId: parseInt(sessionId || "0"),
-      paragraphId: currentParagraphId,
-      topicSentence: currentParagraph.topicSentence.trim(),
-      supportingDetails: currentParagraph.supportingDetails.trim(),
-    });
+    const updatedSession = { ...session };
+    
+    if (currentParagraphIndex < updatedSession.bodyParagraphs.length) {
+      // Update existing paragraph
+      updatedSession.bodyParagraphs[currentParagraphIndex] = {
+        ...updatedSession.bodyParagraphs[currentParagraphIndex],
+        topicSentence: currentParagraph.topicSentence.trim(),
+        supportingDetails: currentParagraph.supportingDetails.trim(),
+      };
+    } else {
+      // Add new paragraph
+      const newParagraph: BodyParagraph = {
+        id: updatedSession.bodyParagraphs.length + 1,
+        topicSentence: currentParagraph.topicSentence.trim(),
+        supportingDetails: currentParagraph.supportingDetails.trim(),
+        orderIndex: updatedSession.bodyParagraphs.length,
+      };
+      updatedSession.bodyParagraphs.push(newParagraph);
+    }
+    
+    saveSession(updatedSession);
+    setSession(updatedSession);
+    setCurrentParagraph({ topicSentence: "", supportingDetails: "" });
+    toast.success("Paragraph saved! 📝");
   };
   
+  // Add another paragraph
   const handleAddAnotherParagraph = () => {
-    addParagraphMutation.mutate({ sessionId: parseInt(sessionId || "0") });
+    if (!session) return;
+    
+    if (currentParagraph.topicSentence.trim() || currentParagraph.supportingDetails.trim()) {
+      toast.error("Please save or clear the current paragraph first!");
+      return;
+    }
+    
+    setCurrentParagraphIndex(session.bodyParagraphs.length);
+    setCurrentParagraph({ topicSentence: "", supportingDetails: "" });
+    toast.success("New paragraph ready! Keep writing! 📝");
   };
   
+  // Move to conclusion
   const handleMoveToConclusion = () => {
-    moveToConclusionMutation.mutate({ sessionId: parseInt(sessionId || "0") });
+    if (!session) return;
+    
+    if (session.bodyParagraphs.length === 0) {
+      toast.error("Please write at least one body paragraph!");
+      return;
+    }
+    
+    const updated = updateSession({ currentStep: 4 });
+    if (updated) {
+      setSession(updated);
+    }
   };
   
-  const handleConclusionSubmit = () => {
+  // Check conclusion score
+  const handleCheckConclusionScore = async () => {
+    if (!conclusion.trim() || !session) {
+      toast.error("Please write your conclusion first!");
+      return;
+    }
+    
+    try {
+      const fullText = session.hook + " " + session.bodyParagraphs.map(p => 
+        `${p.topicSentence} ${p.supportingDetails}`
+      ).join(" ") + " " + conclusion;
+      
+      const totalWords = fullText.trim().split(/\s+/).filter(w => w.length > 0).length;
+      
+      const scoreResult = await previewScoreMutation.mutateAsync({
+        topic: session.topic,
+        title: session.title,
+        currentSection: "conclusion",
+        currentContent: conclusion,
+        totalWordCount: totalWords,
+      });
+      
+      let aiFeedback: string | undefined;
+      try {
+        const feedbackResult = await intelligentFeedbackMutation.mutateAsync({
+          topic: session.topic,
+          title: session.title,
+          hook: session.hook,
+          bodyParagraphs: session.bodyParagraphs.map(p => ({
+            topicSentence: p.topicSentence,
+            supportingDetails: p.supportingDetails,
+          })),
+          conclusion: session.conclusion,
+          currentSection: "conclusion",
+          currentContent: conclusion,
+        });
+        aiFeedback = typeof feedbackResult.feedback === 'string' ? feedbackResult.feedback : undefined;
+      } catch (error) {
+        // AI feedback is optional
+      }
+      
+      setConclusionPreviewScore({
+        score: scoreResult.score,
+        feedback: scoreResult.feedback,
+        scaffolding: scoreResult.scaffoldingPrompts,
+        aiFeedback,
+      });
+      
+      if (scoreResult.score === 1 && scoreResult.scaffoldingPrompts && scoreResult.scaffoldingPrompts.length > 0) {
+        setScaffoldingPrompts(scoreResult.scaffoldingPrompts);
+        setShowScaffolding(true);
+      }
+    } catch (error) {
+      toast.error("Couldn't check score. Try again!");
+    }
+  };
+  
+  // Save conclusion and move to review
+  const handleSaveConclusion = () => {
     if (!conclusion.trim()) {
       toast.error("Please write your conclusion first!");
       return;
     }
-    saveConclusionMutation.mutate({
-      sessionId: parseInt(sessionId || "0"),
+    
+    const updated = updateSession({
       conclusion: conclusion.trim(),
+      currentStep: 5,
     });
+    
+    if (updated) {
+      setSession(updated);
+      toast.success("Great conclusion! Let's see your final score! 🎉");
+    }
   };
   
-  const handleGetAssessment = () => {
-    getAssessmentMutation.mutate({ sessionId: parseInt(sessionId || "0") });
+  // Get help
+  const handleGetHelp = async () => {
+    if (!session) return;
+    
+    const currentSectionContent = 
+      session.currentStep === 2 ? hook :
+      session.currentStep === 3 ? currentParagraph.topicSentence + " " + currentParagraph.supportingDetails :
+      session.currentStep === 4 ? conclusion :
+      "";
+    
+    const currentSectionName =
+      session.currentStep === 2 ? "hook" :
+      session.currentStep === 3 ? "body" :
+      session.currentStep === 4 ? "conclusion" :
+      "general";
+    
+    try {
+      const result = await intelligentFeedbackMutation.mutateAsync({
+        topic: session.topic,
+        title: session.title,
+        hook: session.hook,
+        bodyParagraphs: session.bodyParagraphs.map(p => ({
+          topicSentence: p.topicSentence,
+          supportingDetails: p.supportingDetails,
+        })),
+        conclusion: session.conclusion,
+        currentSection: currentSectionName,
+        currentContent: currentSectionContent,
+      });
+      
+      setHelpContent({
+        tips: [],
+        feedback: typeof result.feedback === 'string' ? result.feedback : "Keep writing! You're doing great!",
+      });
+      setShowHelpDialog(true);
+    } catch (error) {
+      toast.error("Couldn't get help. Try again!");
+    }
   };
   
-  // Revision handlers
-  const handleReviseHook = () => {
-    setIsRevising(true);
+  // Perform final assessment
+  const handleFinalAssessment = async () => {
+    if (!session) return;
+    
+    try {
+      const result = await assessmentMutation.mutateAsync({
+        topic: session.topic,
+        title: session.title,
+        hook: session.hook,
+        bodyParagraphs: session.bodyParagraphs.map(p => ({
+          topicSentence: p.topicSentence,
+          supportingDetails: p.supportingDetails,
+        })),
+        conclusion: session.conclusion,
+      });
+      
+      const updated = updateSession({
+        overallScores: {
+          titleSubtitles: result.titleSubtitles,
+          hook: result.hook,
+          relevantInfo: result.relevantInfo,
+          transitions: result.transitions,
+          accuracy: result.accuracy,
+          vocabulary: result.vocabulary,
+        },
+        overallFeedback: {
+          titleSubtitles: result.feedback.titleSubtitles,
+          hook: result.feedback.hook,
+          relevantInfo: result.feedback.relevantInfo,
+          transitions: result.feedback.transitions,
+          accuracy: result.feedback.accuracy,
+          vocabulary: result.feedback.vocabulary,
+        },
+      });
+      
+      if (updated) {
+        setSession(updated);
+      }
+    } catch (error) {
+      toast.error("Couldn't complete assessment. Try again!");
+    }
   };
   
-  const handleSubmitRevision = (sectionType: "hook" | "conclusion", content: string) => {
-    reviseSectionMutation.mutate({
-      sessionId: parseInt(sessionId || "0"),
-      sectionType,
-      newContent: content,
-    });
-  };
-  
-  // Loading states
-  if (authLoading || isLoading) {
+  // Loading state
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-accent/5">
         <div className="text-center">
@@ -506,6 +571,7 @@ export default function WritingSession() {
     );
   }
   
+  // Session not found
   if (!session) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-accent/5">
@@ -525,7 +591,9 @@ export default function WritingSession() {
     );
   }
   
+  const currentStep = session.currentStep;
   const progress = ((currentStep - 1) / (STEPS.length - 1)) * 100;
+  const totalWords = getTotalWordCount(session);
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
@@ -561,10 +629,10 @@ export default function WritingSession() {
             <Button
               variant="outline"
               onClick={handleGetHelp}
-              disabled={getIntelligentFeedbackMutation.isPending}
+              disabled={intelligentFeedbackMutation.isPending}
               className="gap-2"
             >
-              {getIntelligentFeedbackMutation.isPending ? (
+              {intelligentFeedbackMutation.isPending ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <Sparkles className="w-4 h-4" />
@@ -623,7 +691,7 @@ export default function WritingSession() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg flex items-center gap-2">
-                  📚 Word Bank: {session?.topic}
+                  📚 Word Bank: {session.topic}
                 </CardTitle>
                 <Button
                   variant="ghost"
@@ -659,17 +727,6 @@ export default function WritingSession() {
               )}
             </CardContent>
           </Card>
-        )}
-        
-        {/* Last Score Display */}
-        {lastScore && currentStep < 5 && (
-          <div className="mb-6">
-            <ScoreDisplay
-              score={lastScore.score}
-              label={lastScore.label}
-              feedback={lastScore.feedback}
-            />
-          </div>
         )}
         
         {/* Step 1: Topic Selection */}
@@ -711,21 +768,16 @@ export default function WritingSession() {
               
               <Button
                 onClick={handleTopicSubmit}
-                disabled={setTopicMutation.isPending}
                 className="w-full btn-fun text-lg py-6"
               >
-                {setTopicMutation.isPending ? (
-                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                ) : (
-                  <ChevronRight className="w-5 h-5 mr-2" />
-                )}
+                <ChevronRight className="w-5 h-5 mr-2" />
                 Next Step!
               </Button>
             </CardContent>
           </Card>
         )}
         
-        {/* Step 2: Hook/Introduction */}
+        {/* Step 2: Hook */}
         {currentStep === 2 && (
           <Card className="card-playful">
             <CardHeader>
@@ -764,105 +816,56 @@ export default function WritingSession() {
                   />
                   <VoiceInput
                     onTranscript={(text) => setHook((prev) => prev ? `${prev} ${text}` : text)}
-                    disabled={checkHookScoreMutation.isPending}
+                    disabled={previewScoreMutation.isPending}
                   />
                 </div>
               </div>
               
-              {isRevising && lastScore && lastScore.score === 1 && (
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsRevising(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={() => handleSubmitRevision("hook", hook)}
-                    disabled={reviseSectionMutation.isPending}
-                  >
-                    {reviseSectionMutation.isPending ? (
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    ) : (
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                    )}
-                    Submit Revision
-                  </Button>
-                </div>
-              )}
-              
-              {/* Preview Score Display */}
-              {hookPreviewScore && (
-                <div className="p-4 rounded-xl bg-muted/30 border">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium">Your Score Preview</span>
-                    <span className={`score-badge score-${hookPreviewScore.score}`}>
-                      {hookPreviewScore.score === 3 ? "⭐" : hookPreviewScore.score === 2 ? "👍" : "💪"} {hookPreviewScore.score}/3
-                    </span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{hookPreviewScore.feedback}</p>
-                  {hookPreviewScore.aiFeedback && (
-                    <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
-                      <p className="text-xs font-medium text-primary mb-2">🤖 AI Feedback:</p>
-                      <p className="text-xs leading-relaxed">{hookPreviewScore.aiFeedback}</p>
-                    </div>
-                  )}
-                  {!hookPreviewScore.aiFeedback && hookPreviewScore.scaffolding && hookPreviewScore.scaffolding.length > 0 && (
-                    <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
-                      <p className="text-xs font-medium text-primary mb-2">💡 Tips to improve:</p>
-                      <ul className="space-y-1">
-                        {hookPreviewScore.scaffolding.map((tip, i) => (
-                          <li key={i} className="text-xs flex items-start gap-1">
-                            <span className="text-primary">•</span>
-                            {tip}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
-              
-              {!isRevising && (
-                <div className="flex gap-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      if (!hook.trim()) {
-                        toast.error("Write your hook first!");
-                        return;
-                      }
-                      setHookPreviewScore(null);
-                      checkHookScoreMutation.mutate({
-                        sessionId: parseInt(sessionId || "0"),
-                        sectionType: "hook",
-                        content: hook,
-                      });
-                    }}
-                    disabled={checkHookScoreMutation.isPending}
-                    className="flex-1"
-                  >
-                    {checkHookScoreMutation.isPending ? (
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    ) : (
-                      <Sparkles className="w-4 h-4 mr-2" />
-                    )}
+              {/* Check My Score Button */}
+              <Button
+                variant="outline"
+                onClick={handleCheckHookScore}
+                disabled={previewScoreMutation.isPending || !hook.trim()}
+                className="w-full"
+              >
+                {previewScoreMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    Checking...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
                     Check My Score
-                  </Button>
-                  <Button
-                    onClick={handleHookSubmit}
-                    disabled={saveHookMutation.isPending}
-                    className="flex-1 btn-fun text-lg py-6"
-                  >
-                    {saveHookMutation.isPending ? (
-                      <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                    ) : (
-                      <ChevronRight className="w-5 h-5 mr-2" />
-                    )}
-                    Next Step!
-                  </Button>
+                  </>
+                )}
+              </Button>
+              
+              {/* Score Preview */}
+              {hookPreviewScore && (
+                <div className="space-y-3 p-4 bg-accent/10 rounded-lg border border-accent/20">
+                  <ScoreDisplay
+                    score={hookPreviewScore.score}
+                    label="Hook Score"
+                    feedback={hookPreviewScore.feedback}
+                  />
+                  {hookPreviewScore.aiFeedback && (
+                    <div className="mt-3 p-3 bg-primary/5 rounded-lg border border-primary/10">
+                      <p className="text-sm font-medium mb-1">✨ AI Feedback:</p>
+                      <p className="text-sm text-foreground">{hookPreviewScore.aiFeedback}</p>
+                    </div>
+                  )}
                 </div>
               )}
+              
+              <Button
+                onClick={handleSaveHook}
+                disabled={!hook.trim()}
+                className="w-full btn-fun text-lg py-6"
+              >
+                <ChevronRight className="w-5 h-5 mr-2" />
+                Next Step!
+              </Button>
             </CardContent>
           </Card>
         )}
@@ -873,7 +876,7 @@ export default function WritingSession() {
             <CardHeader>
               <CardTitle className="text-2xl flex items-center gap-3">
                 <span className="step-indicator step-active">3</span>
-                Body Paragraph {currentParagraphIndex + 1} 📝
+                Body Paragraph {session.bodyParagraphs.length + 1} 📝
               </CardTitle>
               <CardDescription>
                 Share facts and details about{" "}
@@ -881,26 +884,31 @@ export default function WritingSession() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Show completed paragraphs */}
-              {paragraphs.slice(0, currentParagraphIndex).map((p, i) => (
-                <div key={p.id} className="p-4 rounded-xl bg-muted/50 border">
-                  <p className="text-sm font-medium text-muted-foreground mb-1">
-                    Paragraph {i + 1} ✓
-                  </p>
-                  <p className="text-sm">{p.topicSentence}</p>
-                </div>
-              ))}
-              
               <div className="encouragement">
                 <p className="text-sm">
-                  💡 <strong>Tip:</strong> Use words like "first," "next," "also" to connect ideas!
+                  💡 <strong>Tip:</strong> Start with a topic sentence, then add 2-3 supporting details!
                 </p>
               </div>
+              
+              {/* Saved paragraphs */}
+              {session.bodyParagraphs.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Saved Paragraphs:</p>
+                  {session.bodyParagraphs.map((para, index) => (
+                    <div key={para.id} className="p-3 bg-accent/10 rounded-lg border border-accent/20">
+                      <p className="text-sm font-medium">Paragraph {index + 1}</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {para.topicSentence.substring(0, 50)}...
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
               
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-medium">
-                    What's one important thing about {session.topic}?
+                    Topic Sentence
                   </label>
                   <span className="text-xs text-muted-foreground">
                     {currentParagraph.topicSentence.trim().split(/\s+/).filter(w => w.length > 0).length} words
@@ -909,24 +917,17 @@ export default function WritingSession() {
                 <div className="flex gap-2">
                   <Textarea
                     value={currentParagraph.topicSentence}
-                    onChange={(e) =>
-                      setCurrentParagraph((prev) => ({
-                        ...prev,
-                        topicSentence: e.target.value,
-                      }))
-                    }
-                    placeholder="Write your main idea..."
+                    onChange={(e) => setCurrentParagraph(prev => ({ ...prev, topicSentence: e.target.value }))}
+                    placeholder="Write your main idea for this paragraph..."
                     className="writing-area flex-1"
                     rows={2}
                   />
                   <VoiceInput
-                    onTranscript={(text) =>
-                      setCurrentParagraph((prev) => ({
-                        ...prev,
-                        topicSentence: prev.topicSentence ? `${prev.topicSentence} ${text}` : text,
-                      }))
-                    }
-                    disabled={checkBodyScoreMutation.isPending}
+                    onTranscript={(text) => setCurrentParagraph(prev => ({
+                      ...prev,
+                      topicSentence: prev.topicSentence ? `${prev.topicSentence} ${text}` : text
+                    }))}
+                    disabled={previewScoreMutation.isPending}
                   />
                 </div>
               </div>
@@ -934,7 +935,7 @@ export default function WritingSession() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-medium">
-                    Tell me more! What facts support this?
+                    Supporting Details
                   </label>
                   <span className="text-xs text-muted-foreground">
                     {currentParagraph.supportingDetails.trim().split(/\s+/).filter(w => w.length > 0).length} words
@@ -943,120 +944,84 @@ export default function WritingSession() {
                 <div className="flex gap-2">
                   <Textarea
                     value={currentParagraph.supportingDetails}
-                    onChange={(e) =>
-                      setCurrentParagraph((prev) => ({
-                        ...prev,
-                        supportingDetails: e.target.value,
-                      }))
-                    }
-                    placeholder="Add details and facts..."
+                    onChange={(e) => setCurrentParagraph(prev => ({ ...prev, supportingDetails: e.target.value }))}
+                    placeholder="Add 2-3 facts or details to support your topic sentence..."
                     className="writing-area flex-1"
                     rows={4}
                   />
                   <VoiceInput
-                    onTranscript={(text) =>
-                      setCurrentParagraph((prev) => ({
-                        ...prev,
-                        supportingDetails: prev.supportingDetails ? `${prev.supportingDetails} ${text}` : text,
-                      }))
-                    }
-                    disabled={checkBodyScoreMutation.isPending}
+                    onTranscript={(text) => setCurrentParagraph(prev => ({
+                      ...prev,
+                      supportingDetails: prev.supportingDetails ? `${prev.supportingDetails} ${text}` : text
+                    }))}
+                    disabled={previewScoreMutation.isPending}
                   />
                 </div>
               </div>
               
-              {/* Preview Score Display */}
+              {/* Check My Score Button */}
+              <Button
+                variant="outline"
+                onClick={handleCheckBodyScore}
+                disabled={previewScoreMutation.isPending || !currentParagraph.topicSentence.trim() || !currentParagraph.supportingDetails.trim()}
+                className="w-full"
+              >
+                {previewScoreMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    Checking...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Check My Score
+                  </>
+                )}
+              </Button>
+              
+              {/* Score Preview */}
               {bodyPreviewScore && (
-                <div className="p-4 rounded-xl bg-muted/30 border">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium">Your Score Preview</span>
-                    <span className={`score-badge score-${bodyPreviewScore.score}`}>
-                      {bodyPreviewScore.score === 3 ? "⭐" : bodyPreviewScore.score === 2 ? "👍" : "💪"} {bodyPreviewScore.score}/3
-                    </span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{bodyPreviewScore.feedback}</p>
+                <div className="space-y-3 p-4 bg-accent/10 rounded-lg border border-accent/20">
+                  <ScoreDisplay
+                    score={bodyPreviewScore.score}
+                    label="Body Paragraph Score"
+                    feedback={bodyPreviewScore.feedback}
+                  />
                   {bodyPreviewScore.aiFeedback && (
-                    <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
-                      <p className="text-xs font-medium text-primary mb-2">🤖 AI Feedback:</p>
-                      <p className="text-xs leading-relaxed">{bodyPreviewScore.aiFeedback}</p>
-                    </div>
-                  )}
-                  {!bodyPreviewScore.aiFeedback && bodyPreviewScore.scaffolding && bodyPreviewScore.scaffolding.length > 0 && (
-                    <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
-                      <p className="text-xs font-medium text-primary mb-2">💡 Tips to improve:</p>
-                      <ul className="space-y-1">
-                        {bodyPreviewScore.scaffolding.map((tip, i) => (
-                          <li key={i} className="text-xs flex items-start gap-1">
-                            <span className="text-primary">•</span>
-                            {tip}
-                          </li>
-                        ))}
-                      </ul>
+                    <div className="mt-3 p-3 bg-primary/5 rounded-lg border border-primary/10">
+                      <p className="text-sm font-medium mb-1">✨ AI Feedback:</p>
+                      <p className="text-sm text-foreground">{bodyPreviewScore.aiFeedback}</p>
                     </div>
                   )}
                 </div>
               )}
               
-              <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex gap-2">
                 <Button
-                  variant="outline"
-                  onClick={() => {
-                    const content = `${currentParagraph.topicSentence} ${currentParagraph.supportingDetails}`.trim();
-                    if (!content) {
-                      toast.error("Write your paragraph first!");
-                      return;
-                    }
-                    setBodyPreviewScore(null);
-                    checkBodyScoreMutation.mutate({
-                      sessionId: parseInt(sessionId || "0"),
-                      sectionType: "body",
-                      content,
-                    });
-                  }}
-                  disabled={checkBodyScoreMutation.isPending}
+                  onClick={handleSaveBodyParagraph}
+                  disabled={!currentParagraph.topicSentence.trim() || !currentParagraph.supportingDetails.trim()}
                   className="flex-1"
                 >
-                  {checkBodyScoreMutation.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : (
-                    <Sparkles className="w-4 h-4 mr-2" />
-                  )}
-                  Check My Score
+                  Save Paragraph
                 </Button>
                 <Button
-                  onClick={handleBodySubmit}
-                  disabled={saveBodyMutation.isPending}
-                  className="flex-1 btn-fun text-lg py-6"
+                  variant="outline"
+                  onClick={handleAddAnotherParagraph}
+                  disabled={currentParagraph.topicSentence.trim() !== "" || currentParagraph.supportingDetails.trim() !== ""}
                 >
-                  {saveBodyMutation.isPending ? (
-                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                  ) : (
-                    <CheckCircle2 className="w-5 h-5 mr-2" />
-                  )}
-                  Save Paragraph
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Another
                 </Button>
               </div>
               
-              {paragraphs.some(p => p.topicSentence && p.supportingDetails) && (
-                <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t">
-                  <Button
-                    variant="outline"
-                    onClick={handleAddAnotherParagraph}
-                    disabled={addParagraphMutation.isPending}
-                    className="flex-1"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Another Paragraph
-                  </Button>
-                  <Button
-                    onClick={handleMoveToConclusion}
-                    disabled={moveToConclusionMutation.isPending}
-                    className="flex-1"
-                  >
-                    <ChevronRight className="w-4 h-4 mr-2" />
-                    Write Conclusion
-                  </Button>
-                </div>
+              {session.bodyParagraphs.length > 0 && (
+                <Button
+                  onClick={handleMoveToConclusion}
+                  className="w-full btn-fun text-lg py-6"
+                >
+                  <ChevronRight className="w-5 h-5 mr-2" />
+                  Write Conclusion
+                </Button>
               )}
             </CardContent>
           </Card>
@@ -1068,17 +1033,17 @@ export default function WritingSession() {
             <CardHeader>
               <CardTitle className="text-2xl flex items-center gap-3">
                 <span className="step-indicator step-active">4</span>
-                Wrap It Up! 🎁
+                Write a Conclusion! 🎯
               </CardTitle>
               <CardDescription>
-                Write a conclusion about{" "}
+                Wrap up your writing about{" "}
                 <span className="font-bold text-primary">{session.topic}</span>
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="encouragement">
                 <p className="text-sm">
-                  💡 <strong>Tip:</strong> Remind readers why your topic is interesting!
+                  💡 <strong>Tip:</strong> Remind readers what you taught them!
                 </p>
               </div>
               
@@ -1095,547 +1060,180 @@ export default function WritingSession() {
                   <Textarea
                     value={conclusion}
                     onChange={(e) => setConclusion(e.target.value)}
-                    placeholder="Write a sentence or two to wrap up your writing..."
+                    placeholder="Wrap up your writing and remind readers what they learned..."
                     className="writing-area flex-1"
                     rows={4}
                   />
                   <VoiceInput
                     onTranscript={(text) => setConclusion((prev) => prev ? `${prev} ${text}` : text)}
-                    disabled={checkConclusionScoreMutation.isPending}
+                    disabled={previewScoreMutation.isPending}
                   />
                 </div>
               </div>
               
-              {/* Preview Score Display */}
+              {/* Check My Score Button */}
+              <Button
+                variant="outline"
+                onClick={handleCheckConclusionScore}
+                disabled={previewScoreMutation.isPending || !conclusion.trim()}
+                className="w-full"
+              >
+                {previewScoreMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    Checking...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Check My Score
+                  </>
+                )}
+              </Button>
+              
+              {/* Score Preview */}
               {conclusionPreviewScore && (
-                <div className="p-4 rounded-xl bg-muted/30 border">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium">Your Score Preview</span>
-                    <span className={`score-badge score-${conclusionPreviewScore.score}`}>
-                      {conclusionPreviewScore.score === 3 ? "⭐" : conclusionPreviewScore.score === 2 ? "👍" : "💪"} {conclusionPreviewScore.score}/3
-                    </span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{conclusionPreviewScore.feedback}</p>
+                <div className="space-y-3 p-4 bg-accent/10 rounded-lg border border-accent/20">
+                  <ScoreDisplay
+                    score={conclusionPreviewScore.score}
+                    label="Conclusion Score"
+                    feedback={conclusionPreviewScore.feedback}
+                  />
                   {conclusionPreviewScore.aiFeedback && (
-                    <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
-                      <p className="text-xs font-medium text-primary mb-2">🤖 AI Feedback:</p>
-                      <p className="text-xs leading-relaxed">{conclusionPreviewScore.aiFeedback}</p>
-                    </div>
-                  )}
-                  {!conclusionPreviewScore.aiFeedback && conclusionPreviewScore.scaffolding && conclusionPreviewScore.scaffolding.length > 0 && (
-                    <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
-                      <p className="text-xs font-medium text-primary mb-2">💡 Tips to improve:</p>
-                      <ul className="space-y-1">
-                        {conclusionPreviewScore.scaffolding.map((tip, i) => (
-                          <li key={i} className="text-xs flex items-start gap-1">
-                            <span className="text-primary">•</span>
-                            {tip}
-                          </li>
-                        ))}
-                      </ul>
+                    <div className="mt-3 p-3 bg-primary/5 rounded-lg border border-primary/10">
+                      <p className="text-sm font-medium mb-1">✨ AI Feedback:</p>
+                      <p className="text-sm text-foreground">{conclusionPreviewScore.aiFeedback}</p>
                     </div>
                   )}
                 </div>
               )}
               
-              <div className="flex gap-4">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    if (!conclusion.trim()) {
-                      toast.error("Write your conclusion first!");
-                      return;
-                    }
-                    setConclusionPreviewScore(null);
-                    checkConclusionScoreMutation.mutate({
-                      sessionId: parseInt(sessionId || "0"),
-                      sectionType: "conclusion",
-                      content: conclusion,
-                    });
-                  }}
-                  disabled={checkConclusionScoreMutation.isPending}
-                  className="flex-1"
-                >
-                  {checkConclusionScoreMutation.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : (
-                    <Sparkles className="w-4 h-4 mr-2" />
-                  )}
-                  Check My Score
-                </Button>
-                <Button
-                  onClick={handleConclusionSubmit}
-                  disabled={saveConclusionMutation.isPending}
-                  className="flex-1 btn-fun text-lg py-6"
-                >
-                  {saveConclusionMutation.isPending ? (
-                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                  ) : (
-                    <ChevronRight className="w-5 h-5 mr-2" />
-                  )}
-                  See My Score!
-                </Button>
-              </div>
+              <Button
+                onClick={handleSaveConclusion}
+                disabled={!conclusion.trim()}
+                className="w-full btn-fun text-lg py-6"
+              >
+                <ChevronRight className="w-5 h-5 mr-2" />
+                See My Score!
+              </Button>
             </CardContent>
           </Card>
         )}
         
-        {/* Step 5: Review/Assessment */}
+        {/* Step 5: Review */}
         {currentStep === 5 && (
-          <div className="space-y-6">
-            {!getAssessmentMutation.data ? (
-              <Card className="card-playful text-center">
-                <CardHeader>
-                  <CardTitle className="text-2xl">
-                    Ready to see how you did? 🌟
-                  </CardTitle>
-                  <CardDescription>
-                    Click below to get your final score!
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button
-                    onClick={handleGetAssessment}
-                    disabled={getAssessmentMutation.isPending}
-                    className="btn-fun text-lg px-8 py-6"
-                  >
-                    {getAssessmentMutation.isPending ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                        Checking your writing...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-5 h-5 mr-2" />
-                        Get My Score!
-                      </>
+          <Card className="card-playful">
+            <CardHeader>
+              <CardTitle className="text-2xl flex items-center gap-3">
+                <span className="step-indicator step-active">5</span>
+                Your Final Score! 🎉
+              </CardTitle>
+              <CardDescription>
+                Let's see how you did!
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {!session.overallScores ? (
+                <Button
+                  onClick={handleFinalAssessment}
+                  disabled={assessmentMutation.isPending}
+                  className="w-full btn-fun text-lg py-6"
+                >
+                  {assessmentMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                      Calculating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5 mr-2" />
+                      Get My Final Score!
+                    </>
+                  )}
+                </Button>
+              ) : (
+                <div className="space-y-4">
+                  <div className="text-center p-6 bg-primary/10 rounded-lg border-2 border-primary/20">
+                    <p className="text-4xl font-bold text-primary mb-2">
+                      {session.overallScores.titleSubtitles + session.overallScores.hook + session.overallScores.relevantInfo + session.overallScores.transitions + session.overallScores.accuracy + session.overallScores.vocabulary}/18
+                    </p>
+                    <p className="text-lg text-muted-foreground">Total Score</p>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Total Words: {totalWords}
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <ScoreDisplay score={session.overallScores.titleSubtitles} label="Title & Subtitles" feedback={session.overallFeedback?.titleSubtitles} />
+                    <ScoreDisplay score={session.overallScores.hook} label="Hook" feedback={session.overallFeedback?.hook} />
+                    <ScoreDisplay score={session.overallScores.relevantInfo} label="Relevant Information" feedback={session.overallFeedback?.relevantInfo} />
+                    <ScoreDisplay score={session.overallScores.transitions} label="Transitions" feedback={session.overallFeedback?.transitions} />
+                    <ScoreDisplay score={session.overallScores.accuracy} label="Accuracy" feedback={session.overallFeedback?.accuracy} />
+                    <ScoreDisplay score={session.overallScores.vocabulary} label="Vocabulary" feedback={session.overallFeedback?.vocabulary} />
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => setLocation(`/article/${sessionId}`)}
+                      className="flex-1"
+                    >
+                      <PenLine className="w-4 h-4 mr-2" />
+                      View Article
+                    </Button>
+                    
+                    {(session.overallScores.titleSubtitles + session.overallScores.hook + session.overallScores.relevantInfo + session.overallScores.transitions + session.overallScores.accuracy + session.overallScores.vocabulary) >= 14 && (
+                      <Button
+                        onClick={() => setLocation(`/certificate/${sessionId}`)}
+                        className="flex-1 btn-fun"
+                      >
+                        🏆 Get Certificate
+                      </Button>
                     )}
+                  </div>
+                  
+                  <Button
+                    variant="outline"
+                    onClick={() => setLocation("/")}
+                    className="w-full"
+                  >
+                    <Home className="w-4 h-4 mr-2" />
+                    Start New Writing
                   </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <AssessmentResults
-                data={getAssessmentMutation.data}
-                session={session}
-                paragraphs={paragraphs}
-                sessionId={parseInt(sessionId || "0")}
-                onRefetch={refetch}
-              />
-            )}
-          </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         )}
       </main>
       
       {/* Help Dialog */}
       <Dialog open={showHelpDialog} onOpenChange={setShowHelpDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Lightbulb className="w-5 h-5 text-primary" />
-              Writing Tips for {STEPS[currentStep - 1]?.title}
-            </DialogTitle>
+            <DialogTitle>Writing Help 💡</DialogTitle>
             <DialogDescription>
-              Here are some tips to help you write better!
+              Here are some tips to help you!
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            {helpContent.tips.length > 0 && (
-              <div>
-                <p className="text-sm font-medium mb-2">🎯 General Tips:</p>
-                <ul className="space-y-2">
-                  {helpContent.tips.map((tip, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm">
-                      <span className="text-primary font-bold mt-0.5">•</span>
-                      <span>{tip}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
             {helpContent.feedback && (
-              <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
-                <p className="text-sm font-medium text-primary mb-1">🤖 AI Feedback:</p>
+              <div className="p-4 bg-primary/5 rounded-lg border border-primary/10">
                 <p className="text-sm">{helpContent.feedback}</p>
               </div>
             )}
-            <Button onClick={() => setShowHelpDialog(false)} className="w-full">
-              Got it! ✔️
-            </Button>
+            {helpContent.tips.length > 0 && (
+              <ul className="space-y-2">
+                {helpContent.tips.map((tip, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm">
+                    <span className="text-primary font-bold">•</span>
+                    {tip}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-// Assessment Results Component
-interface AssessmentResultsProps {
-  data: {
-    scores: Record<string, number>;
-    feedback: Record<string, string>;
-    totalScore: number;
-    maxScore: number;
-    strengths: string[];
-    areasForGrowth: string[];
-    overallFeedback: string;
-    needsScaffolding: boolean;
-  };
-  session: {
-    topic: string | null;
-    title: string | null;
-    hook: string | null;
-    conclusion: string | null;
-  };
-  paragraphs: Array<{
-    topicSentence: string | null;
-    supportingDetails: string | null;
-  }>;
-  sessionId: number;
-  onRefetch: () => void;
-}
-
-function AssessmentResults({ data, session, paragraphs, sessionId, onRefetch }: AssessmentResultsProps) {
-  const [showSelfAssessment, setShowSelfAssessment] = useState(false);
-  const [, setLocation] = useLocation();
-  const percentage = Math.round((data.totalScore / data.maxScore) * 100);
-  const isHighScore = percentage >= 70;
-  
-  const criteriaLabels: Record<string, string> = {
-    titleSubtitles: "Title",
-    hook: "Hook",
-    relevantInfo: "Facts & Details",
-    transitions: "Connecting Words",
-    accuracy: "Spelling & Grammar",
-    vocabulary: "Word Choice",
-  };
-  
-  return (
-    <div className="space-y-6">
-      {/* Score Summary */}
-      <Card className={`card-playful ${isHighScore ? "border-2 border-primary" : ""}`}>
-        <CardHeader className="text-center">
-          <div className={`text-6xl mb-4 ${isHighScore ? "animate-bounce-gentle" : ""}`}>
-            {isHighScore ? "🎉" : "💪"}
-          </div>
-          <CardTitle className="text-3xl">
-            {isHighScore ? "Amazing Work!" : "Great Effort!"}
-          </CardTitle>
-          <CardDescription className="text-lg">
-            You scored <span className="font-bold text-primary">{data.totalScore}</span> out of{" "}
-            <span className="font-bold">{data.maxScore}</span> points!
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="w-full bg-muted rounded-full h-4 mb-4">
-            <div
-              className="h-4 rounded-full bg-gradient-to-r from-primary to-accent transition-all duration-1000"
-              style={{ width: `${percentage}%` }}
-            />
-          </div>
-          <p className="text-center text-muted-foreground">{percentage}% complete!</p>
-          
-          {/* Perfect Score Certificate */}
-          {data.totalScore >= 14 && (
-            <div className="mt-6 p-4 rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 border-2 border-primary/30">
-              <div className="text-center space-y-3">
-                <p className="text-lg font-bold text-primary">🏆 Excellent Score! 🏆</p>
-                <p className="text-sm text-muted-foreground">You've earned {data.totalScore} points! You're an Informational Text Expert!</p>
-                <Button
-                  onClick={() => setLocation(`/certificate/${sessionId}`)}
-                  className="btn-fun"
-                >
-                  <Award className="w-4 h-4 mr-2" />
-                  Get Your Certificate!
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-      
-      {/* Detailed Scores */}
-      <Card className="card-playful">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-xl">Your Scores 📊</CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowSelfAssessment(!showSelfAssessment)}
-            >
-              {showSelfAssessment ? "Hide" : "Rate Yourself"}
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {Object.entries(data.scores).map(([key, score]) => (
-            <div key={key} className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
-              <div>
-                <p className="font-medium">{criteriaLabels[key] || key}</p>
-                <p className="text-sm text-muted-foreground">
-                  {data.feedback[key]}
-                </p>
-              </div>
-              <span className={`score-badge score-${score}`}>
-                {score === 3 ? "⭐" : score === 2 ? "👍" : "💪"} {score}/3
-              </span>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-      
-      {/* Self Assessment Section */}
-      {showSelfAssessment && (
-        <Card className="card-playful border-2 border-primary/30">
-          <CardHeader>
-            <CardTitle className="text-xl">Rate Yourself! ✏️</CardTitle>
-            <CardDescription>
-              How do you think you did? Compare your scores with the AI!
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {Object.entries(data.scores).map(([key, aiScore]) => {
-              const criterion = key as "titleSubtitles" | "hook" | "relevantInfo" | "transitions" | "accuracy" | "vocabulary";
-              return (
-                <SelfAssessmentItem
-                  key={key}
-                  sessionId={sessionId}
-                  criterion={criterion}
-                  label={criteriaLabels[key] || key}
-                  aiScore={aiScore}
-                  feedback={data.feedback[key]}
-                  onUpdate={onRefetch}
-                />
-              );
-            })}
-          </CardContent>
-        </Card>
-      )}
-      
-      {/* Strengths & Growth */}
-      <div className="grid md:grid-cols-2 gap-6">
-        <Card className="card-playful">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              ⭐ Your Strengths
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2">
-              {data.strengths.map((strength, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm">
-                  <CheckCircle2 className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                  {strength}
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-        
-        <Card className="card-playful">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              🎯 Keep Practicing
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2">
-              {data.areasForGrowth.map((area, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm">
-                  <Sparkles className="w-4 h-4 text-accent-foreground mt-0.5 flex-shrink-0" />
-                  {area}
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      </div>
-      
-      {/* Complete Writing */}
-      <Card className="card-playful">
-        <CardHeader>
-          <CardTitle className="text-xl">Your Complete Writing 📄</CardTitle>
-        </CardHeader>
-        <CardContent className="prose prose-sm max-w-none">
-          <h3 className="text-xl font-bold text-center mb-4">{session.title}</h3>
-          
-          <div className="mb-4">
-            <p className="font-medium text-muted-foreground text-xs mb-1">Introduction</p>
-            <p>{session.hook}</p>
-          </div>
-          
-          {paragraphs.map((p, i) => (
-            <div key={i} className="mb-4">
-              <p className="font-medium text-muted-foreground text-xs mb-1">
-                Body Paragraph {i + 1}
-              </p>
-              <p>
-                {p.topicSentence} {p.supportingDetails}
-              </p>
-            </div>
-          ))}
-          
-          <div>
-            <p className="font-medium text-muted-foreground text-xs mb-1">Conclusion</p>
-            <p>{session.conclusion}</p>
-          </div>
-        </CardContent>
-      </Card>
-      
-      {/* Overall Feedback */}
-      <Card className="card-playful bg-gradient-to-r from-primary/5 to-accent/5">
-        <CardContent className="pt-6">
-          <p className="text-center text-lg">{data.overallFeedback}</p>
-        </CardContent>
-      </Card>
-      
-      {/* Actions */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <Button
-          variant="outline"
-          onClick={() => setLocation(`/article/${sessionId}`)}
-          className="flex-1"
-        >
-          📄 View Full Article
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => setLocation("/history")}
-          className="flex-1"
-        >
-          View All My Writing
-        </Button>
-        <Button
-          onClick={() => setLocation("/")}
-          className="flex-1 btn-fun"
-        >
-          <PenLine className="w-4 h-4 mr-2" />
-          Write Something New!
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-
-// Self Assessment Item Component
-interface SelfAssessmentItemProps {
-  sessionId: number;
-  criterion: "titleSubtitles" | "hook" | "relevantInfo" | "transitions" | "accuracy" | "vocabulary";
-  label: string;
-  aiScore: number;
-  feedback: string;
-  onUpdate: () => void;
-}
-
-const criteriaDescriptions: Record<string, { 3: string; 2: string; 1: string }> = {
-  titleSubtitles: {
-    3: "Clear, relevant title",
-    2: "Title is okay",
-    1: "Needs a better title",
-  },
-  hook: {
-    3: "Grabs attention!",
-    2: "Starts okay",
-    1: "Needs more interest",
-  },
-  relevantInfo: {
-    3: "Lots of good facts",
-    2: "Some facts",
-    1: "Needs more info",
-  },
-  transitions: {
-    3: "Ideas flow smoothly",
-    2: "Some flow",
-    1: "Choppy ideas",
-  },
-  accuracy: {
-    3: "Very few mistakes",
-    2: "Some mistakes",
-    1: "Many mistakes",
-  },
-  vocabulary: {
-    3: "Great word choices",
-    2: "Basic words",
-    1: "Very simple words",
-  },
-};
-
-function SelfAssessmentItem({
-  sessionId,
-  criterion,
-  label,
-  aiScore,
-  feedback,
-  onUpdate,
-}: SelfAssessmentItemProps) {
-  const [selectedScore, setSelectedScore] = useState<number | null>(null);
-  const [saved, setSaved] = useState(false);
-  
-  const updateMutation = trpc.writing.updateSelfAssessment.useMutation({
-    onSuccess: () => {
-      setSaved(true);
-      toast.success(`${label} score saved! ⭐`);
-      onUpdate();
-    },
-    onError: () => {
-      toast.error("Couldn't save. Try again!");
-    },
-  });
-  
-  const handleSave = (score: number) => {
-    setSelectedScore(score);
-    updateMutation.mutate({
-      sessionId,
-      criterion,
-      score,
-    });
-  };
-  
-  const descriptions = criteriaDescriptions[criterion];
-  
-  return (
-    <div className="p-4 rounded-xl bg-muted/30 border">
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <p className="font-medium">{label}</p>
-          <p className="text-xs text-muted-foreground">{feedback}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">AI:</span>
-          <span className={`score-badge score-${aiScore}`}>
-            {aiScore === 3 ? "⭐" : aiScore === 2 ? "👍" : "💪"} {aiScore}
-          </span>
-        </div>
-      </div>
-      
-      {saved ? (
-        <div className="flex items-center gap-2 text-sm">
-          <CheckCircle2 className="w-4 h-4 text-primary" />
-          <span>You gave yourself: </span>
-          <span className={`score-badge score-${selectedScore}`}>
-            {selectedScore === 3 ? "⭐" : selectedScore === 2 ? "👍" : "💪"} {selectedScore}
-          </span>
-        </div>
-      ) : (
-        <div className="flex gap-2">
-          {[3, 2, 1].map((score) => (
-            <button
-              key={score}
-              onClick={() => handleSave(score)}
-              disabled={updateMutation.isPending}
-              className={`flex-1 p-2 rounded-lg border-2 text-center transition-all hover:border-primary/50 ${
-                selectedScore === score ? "border-primary bg-primary/5" : "border-border"
-              }`}
-            >
-              <span className="block text-lg mb-1">
-                {score === 3 ? "⭐" : score === 2 ? "👍" : "💪"}
-              </span>
-              <span className="text-xs">{descriptions?.[score as 1 | 2 | 3]}</span>
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

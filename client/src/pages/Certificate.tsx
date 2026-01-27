@@ -1,4 +1,3 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useParams, useLocation } from "wouter";
@@ -7,7 +6,6 @@ import { Download, Home, Award, Star } from "lucide-react";
 export default function Certificate() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const [, setLocation] = useLocation();
-  const { user } = useAuth();
 
   const handlePrint = () => {
     window.print();
@@ -74,7 +72,7 @@ export default function Certificate() {
               
               <div className="py-4 px-8 bg-gradient-to-r from-primary/5 to-accent/5 rounded-lg inline-block">
                 <p className="text-3xl md:text-4xl font-bold text-primary">
-                  {user?.name || "Young Writer"}
+                  Young Writer
                 </p>
               </div>
 
