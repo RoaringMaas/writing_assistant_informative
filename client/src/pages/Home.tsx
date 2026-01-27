@@ -32,19 +32,33 @@ export default function Home() {
         saveCode: loadCode.trim().toUpperCase(),
       });
 
-      // Save loaded session to localStorage
-      // sessionData is already an object from the database, just stringify it
+      if (!result.sessionData) {
+        toast.error("Invalid session data received");
+        return;
+      }
+
       const sessionToStore = {
-        ...result.sessionData,
+        sessionId: result.sessionData.sessionId || "",
+        topic: result.sessionData.topic || "",
+        title: result.sessionData.title || "",
+        hook: result.sessionData.hook || "",
+        bodyParagraphs: result.sessionData.bodyParagraphs || [],
+        conclusion: result.sessionData.conclusion || "",
+        currentStep: result.sessionData.currentStep || 1,
+        overallScores: result.sessionData.overallScores || null,
+        overallFeedback: result.sessionData.overallFeedback || null,
+        selfAssessment: result.sessionData.selfAssessment || null,
         createdAt: result.sessionData.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
+      
       localStorage.setItem("writing_session", JSON.stringify(sessionToStore));
       
       toast.success("Session loaded successfully!");
       setShowLoadDialog(false);
-      setLocation(`/write/${result.sessionData.sessionId}`);
+      setLocation(`/write/${sessionToStore.sessionId}`);
     } catch (error: any) {
+      console.error("Load session error:", error);
       toast.error(error.message || "Failed to load session. Please check your code.");
     } finally {
       setIsLoading(false);

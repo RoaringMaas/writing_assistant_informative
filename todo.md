@@ -159,3 +159,7 @@
 - [x] Fix save session error: body paragraph IDs are numbers instead of strings, causing validation failure
 
 - [x] Fix load session error: "hooks[lastArg] is not a function" when loading a saved session - Fixed by storing with correct localStorage key
+
+- [x] Fix load session: Added validation and proper field initialization
+- [x] Add back button to Certificate page to return to final score page
+- [x] Add back button to ArticleDisplay page to return to final score page

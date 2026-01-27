@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useParams, useLocation } from "wouter";
-import { Download, Home, Award, Star } from "lucide-react";
+import { Download, Home, Award, Star, ArrowLeft } from "lucide-react";
 
 export default function Certificate() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -21,14 +21,24 @@ export default function Certificate() {
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-orange-50 to-pink-50 p-4 md:p-8">
       {/* Header - hidden when printing */}
       <div className="print:hidden max-w-4xl mx-auto mb-6 flex items-center justify-between">
-        <Button
-          variant="outline"
-          onClick={() => setLocation("/")}
-          className="gap-2"
-        >
-          <Home className="w-4 h-4" />
-          Home
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => window.history.back()}
+            className="gap-2"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setLocation("/")}
+            className="gap-2"
+          >
+            <Home className="w-4 h-4" />
+            Home
+          </Button>
+        </div>
         <Button onClick={handlePrint} className="gap-2">
           <Download className="w-4 h-4" />
           Print Certificate
