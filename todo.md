@@ -163,3 +163,5 @@
 - [x] Fix load session: Added validation and proper field initialization
 - [x] Add back button to Certificate page to return to final score page
 - [x] Add back button to ArticleDisplay page to return to final score page
+
+- [x] Fix "hooks[lastArg] is not a function" error in handleLoadSession - Changed from query to mutation

@@ -13,25 +13,10 @@ export default function Home() {
   const [, setLocation] = useLocation();
   const [showLoadDialog, setShowLoadDialog] = useState(false);
   const [loadCode, setLoadCode] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleStartWriting = () => {
-    const session = createSession();
-    setLocation(`/write/${session.sessionId}`);
-  };
-
-  const handleLoadSession = async () => {
-    if (!loadCode.trim()) {
-      toast.error("Please enter a save code");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const result = await trpc.writing.loadSessionAnonymous.query({
-        saveCode: loadCode.trim().toUpperCase(),
-      });
-
+  
+  // Use mutation to load session - mutations can be called from event handlers
+  const loadSessionMutation = trpc.writing.loadSessionAnonymous.useMutation({
+    onSuccess: (result) => {
       if (!result.sessionData) {
         toast.error("Invalid session data received");
         return;
@@ -53,67 +38,76 @@ export default function Home() {
       };
       
       localStorage.setItem("writing_session", JSON.stringify(sessionToStore));
-      
       toast.success("Session loaded successfully!");
       setShowLoadDialog(false);
+      setLoadCode("");
       setLocation(`/write/${sessionToStore.sessionId}`);
-    } catch (error: any) {
+    },
+    onError: (error: any) => {
       console.error("Load session error:", error);
       toast.error(error.message || "Failed to load session. Please check your code.");
-    } finally {
-      setIsLoading(false);
+    },
+  });
+
+  const handleStartWriting = () => {
+    const session = createSession();
+    setLocation(`/write/${session.sessionId}`);
+  };
+
+  const handleLoadSession = () => {
+    if (!loadCode.trim()) {
+      toast.error("Please enter a save code");
+      return;
     }
+
+    loadSessionMutation.mutate({
+      saveCode: loadCode.trim().toUpperCase(),
+    });
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
       {/* Header */}
-      <header className="container py-6">
-        <nav className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center">
-              <PenLine className="w-7 h-7 text-primary-foreground" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-foreground">Writing Helper</h1>
-              <p className="text-sm text-muted-foreground">For Young Writers</p>
-            </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+            <PenLine className="w-6 h-6 text-white" />
           </div>
-          
-          {/* Load My Work button */}
-          <Button
-            variant="outline"
-            onClick={() => setShowLoadDialog(true)}
-            className="gap-2"
-          >
-            <Download className="w-4 h-4" />
-            Load My Work
-          </Button>
-        </nav>
-      </header>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Writing Helper</h1>
+            <p className="text-sm text-muted-foreground">For Young Writers</p>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          onClick={() => setShowLoadDialog(true)}
+          className="gap-2"
+        >
+          <Download className="w-4 h-4" />
+          Load My Work
+        </Button>
+      </div>
 
-      {/* Hero Section */}
-      <main className="container py-12">
-        <div className="max-w-4xl mx-auto text-center mb-16">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/20 text-accent-foreground mb-6">
-            <Sparkles className="w-4 h-4" />
-            <span className="text-sm font-medium">Learn to Write Amazing Stories!</span>
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Hero Section */}
+        <div className="text-center mb-16 space-y-6">
+          <div className="inline-block px-4 py-2 rounded-full bg-accent/20 text-accent-foreground text-sm font-medium">
+            ✨ Learn to Write Amazing Stories!
           </div>
           
-          <h2 className="text-4xl md:text-5xl font-extrabold text-foreground mb-6 leading-tight">
-            Become a{" "}
-            <span className="text-primary">Super Writer</span>{" "}
-            Today! ✨
+          <h2 className="text-5xl md:text-6xl font-bold text-foreground">
+            Become a <span className="bg-gradient-to-r from-primary via-purple-500 to-pink-500 bg-clip-text text-transparent">Super Writer</span> Today! <span className="text-4xl">✨</span>
           </h2>
           
-          <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             I'll help you write amazing informational texts step by step.
           </p>
           
           <Button
-            size="lg"
             onClick={handleStartWriting}
-            className="btn-fun text-lg px-8 py-6 gap-3"
+            size="lg"
+            className="gap-2 text-lg h-12 px-8"
           >
             <PenLine className="w-5 h-5" />
             Start Writing!
@@ -121,119 +115,79 @@ export default function Home() {
         </div>
 
         {/* Features Grid */}
-        <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-          <Card className="card-playful hover:shadow-xl transition-shadow">
+        <div className="grid md:grid-cols-3 gap-6">
+          {/* Step by Step */}
+          <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
-              <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
-                <BookOpen className="w-7 h-7 text-primary" />
+              <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center mb-4">
+                <BookOpen className="w-6 h-6 text-blue-600" />
               </div>
-              <CardTitle className="text-xl">Step by Step</CardTitle>
-              <CardDescription>
+              <CardTitle>Step by Step</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CardDescription className="text-base">
                 I'll guide you through each part of your writing
               </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li className="flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-full bg-accent/20 flex items-center justify-center text-xs">1</span>
-                  Pick your topic
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-full bg-accent/20 flex items-center justify-center text-xs">2</span>
-                  Write a hook
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-full bg-accent/20 flex items-center justify-center text-xs">3</span>
-                  Add your facts
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-full bg-accent/20 flex items-center justify-center text-xs">4</span>
-                  Finish strong!
-                </li>
-              </ul>
+              <div className="mt-4 space-y-2 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-xs font-bold">1</span>
+                  <span>Pick your topic</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-xs font-bold">2</span>
+                  <span>Write a hook</span>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
-          <Card className="card-playful hover:shadow-xl transition-shadow">
+          {/* Get Stars */}
+          <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
-              <div className="w-14 h-14 rounded-xl bg-accent/20 flex items-center justify-center mb-4">
-                <Star className="w-7 h-7 text-accent-foreground" />
+              <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center mb-4">
+                <Star className="w-6 h-6 text-green-600" />
               </div>
-              <CardTitle className="text-xl">Get Stars!</CardTitle>
-              <CardDescription>
+              <CardTitle>Get Stars!</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CardDescription className="text-base">
                 Earn points for great writing
               </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <span className="score-badge score-3">⭐ 3</span>
-                  <span className="text-sm">Amazing work!</span>
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="px-2 py-1 rounded-full bg-green-100 text-green-700 font-bold text-xs">⭐ 3</span>
+                  <span className="text-muted-foreground">Amazing work!</span>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="score-badge score-2">⭐ 2</span>
-                  <span className="text-sm">Good job!</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="score-badge score-1">⭐ 1</span>
-                  <span className="text-sm">Keep trying!</span>
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 font-bold text-xs">⭐ 2</span>
+                  <span className="text-muted-foreground">Good job!</span>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="card-playful hover:shadow-xl transition-shadow">
+          {/* Get Help */}
+          <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
-              <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
-                <Sparkles className="w-7 h-7 text-primary" />
+              <div className="w-12 h-12 rounded-lg bg-purple-100 flex items-center justify-center mb-4">
+                <Sparkles className="w-6 h-6 text-purple-600" />
               </div>
-              <CardTitle className="text-xl">Get Help!</CardTitle>
-              <CardDescription>
-                I'll give you tips when you need them
-              </CardDescription>
+              <CardTitle>Get Help!</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="encouragement">
-                <p className="text-sm font-medium text-foreground mb-2">
-                  💡 Helpful Tip:
-                </p>
-                <p className="text-sm text-muted-foreground">
+              <CardDescription className="text-base">
+                I'll give you tips when you need them
+              </CardDescription>
+              <div className="mt-4 p-3 rounded-lg bg-purple-50 border border-purple-200">
+                <p className="text-sm font-semibold text-purple-900 mb-1">💡 Helpful Tip:</p>
+                <p className="text-sm text-purple-800">
                   "Start with a question to grab your reader's attention!"
                 </p>
               </div>
             </CardContent>
           </Card>
         </div>
-
-        {/* What You'll Learn */}
-        <div className="mt-16 max-w-3xl mx-auto text-center">
-          <h3 className="text-2xl font-bold mb-8">What You'll Learn 📚</h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {[
-              "Writing great titles",
-              "Catching attention",
-              "Adding facts",
-              "Using transitions",
-              "Spelling & grammar",
-              "Using cool words",
-            ].map((skill, i) => (
-              <div
-                key={i}
-                className="px-4 py-3 rounded-xl bg-card border text-sm font-medium"
-              >
-                ✓ {skill}
-              </div>
-            ))}
-          </div>
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="container py-8 mt-8 border-t">
-        <p className="text-center text-sm text-muted-foreground">
-          Made with 💜 for young writers everywhere
-        </p>
-      </footer>
+      </div>
 
       {/* Load Session Dialog */}
       <Dialog open={showLoadDialog} onOpenChange={setShowLoadDialog}>
@@ -246,13 +200,13 @@ export default function Home() {
           </DialogHeader>
           <div className="space-y-4">
             <Input
-              placeholder="Enter code (e.g., ABC123)"
+              placeholder="e.g., ABC123"
               value={loadCode}
               onChange={(e) => setLoadCode(e.target.value.toUpperCase())}
               maxLength={6}
-              className="text-center text-lg font-mono tracking-wider"
+              disabled={loadSessionMutation.isPending}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
+                if (e.key === "Enter" && !loadSessionMutation.isPending) {
                   handleLoadSession();
                 }
               }}
@@ -261,16 +215,16 @@ export default function Home() {
               <Button
                 variant="outline"
                 onClick={() => setShowLoadDialog(false)}
-                className="flex-1"
+                disabled={loadSessionMutation.isPending}
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleLoadSession}
-                disabled={isLoading || loadCode.length < 6}
+                disabled={loadSessionMutation.isPending || !loadCode.trim()}
                 className="flex-1"
               >
-                {isLoading ? "Loading..." : "Load Session"}
+                {loadSessionMutation.isPending ? "Loading..." : "Load Session"}
               </Button>
             </div>
           </div>
