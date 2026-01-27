@@ -112,7 +112,7 @@ export function VoiceInput({ onTranscript, disabled = false }: VoiceInputProps) 
   }, []);
 
   const startListening = () => {
-    if (!recognitionRef.current || disabled) return;
+    if (!recognitionRef.current || disabled || isListening) return;
 
     try {
       setTranscript("");
@@ -138,12 +138,15 @@ export function VoiceInput({ onTranscript, disabled = false }: VoiceInputProps) 
 
   const tryAgain = () => {
     setTranscript("");
-    if (recognitionRef.current) {
+    if (recognitionRef.current && isListening) {
       recognitionRef.current.stop();
+      setIsListening(false);
     }
     setTimeout(() => {
-      startListening();
-    }, 100);
+      if (!isListening) {
+        startListening();
+      }
+    }, 200);
   };
 
   if (!isSupported) {

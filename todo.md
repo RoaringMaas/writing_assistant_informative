@@ -138,3 +138,7 @@
 - [x] Update ArticleDisplay.tsx to use localStorage
 - [x] Update Certificate.tsx to use localStorage
 - [x] Test anonymous version - all features working
+
+
+## Bug Fixes (2026-01-27)
+- [x] Fix VoiceInput component error: "recognition has already started" when clicking microphone button multiple times
