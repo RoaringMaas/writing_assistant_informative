@@ -142,3 +142,5 @@
 
 ## Bug Fixes (2026-01-27)
 - [x] Fix VoiceInput component error: "recognition has already started" when clicking microphone button multiple times
+
+- [x] Fix voice transcription: transcribed text sometimes doesn't appear in text field (intermittent issue) - Fixed by using useRef instead of state

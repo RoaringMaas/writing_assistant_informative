@@ -20,6 +20,7 @@ interface SpeechRecognition extends EventTarget {
   lang: string;
   start(): void;
   stop(): void;
+  abort(): void;
   onstart: ((this: SpeechRecognition, ev: Event) => any) | null;
   onresult: ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any) | null;
   onerror: ((this: SpeechRecognition, ev: SpeechRecognitionErrorEvent) => any) | null;
@@ -43,9 +44,9 @@ interface VoiceInputProps {
 
 export function VoiceInput({ onTranscript, disabled = false }: VoiceInputProps) {
   const [isListening, setIsListening] = useState(false);
-  const [transcript, setTranscript] = useState("");
   const [isSupported, setIsSupported] = useState(true);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const transcriptRef = useRef<string>(""); // Use ref to avoid state timing issues
 
   type SpeechRecognitionConstructor = typeof SpeechRecognition | typeof webkitSpeechRecognition;
 
@@ -66,6 +67,7 @@ export function VoiceInput({ onTranscript, disabled = false }: VoiceInputProps) 
 
     recognition.onstart = () => {
       setIsListening(true);
+      transcriptRef.current = ""; // Reset transcript ref on start
       toast.info("🎤 Listening... Speak now!");
     };
 
@@ -82,7 +84,8 @@ export function VoiceInput({ onTranscript, disabled = false }: VoiceInputProps) 
         }
       }
 
-      setTranscript((prev) => prev + finalTranscript);
+      // Update ref directly for immediate access in stopListening
+      transcriptRef.current += finalTranscript;
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -106,7 +109,11 @@ export function VoiceInput({ onTranscript, disabled = false }: VoiceInputProps) 
 
     return () => {
       if (recognitionRef.current) {
-        recognitionRef.current.stop();
+        try {
+          recognitionRef.current.abort();
+        } catch (e) {
+          // Ignore abort errors
+        }
       }
     };
   }, []);
@@ -115,7 +122,7 @@ export function VoiceInput({ onTranscript, disabled = false }: VoiceInputProps) 
     if (!recognitionRef.current || disabled || isListening) return;
 
     try {
-      setTranscript("");
+      transcriptRef.current = ""; // Reset transcript ref
       recognitionRef.current.start();
     } catch (error) {
       console.error("Error starting recognition:", error);
@@ -129,17 +136,24 @@ export function VoiceInput({ onTranscript, disabled = false }: VoiceInputProps) 
     recognitionRef.current.stop();
     setIsListening(false);
 
-    // Send transcript to parent component
-    if (transcript.trim()) {
-      onTranscript(transcript.trim());
+    // Use ref value directly to avoid state timing issues
+    const finalTranscript = transcriptRef.current.trim();
+    if (finalTranscript) {
+      onTranscript(finalTranscript);
       toast.success("✓ Voice input added!");
+    } else {
+      toast.warning("No speech detected. Please try again.");
     }
   };
 
   const tryAgain = () => {
-    setTranscript("");
+    transcriptRef.current = "";
     if (recognitionRef.current && isListening) {
-      recognitionRef.current.stop();
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {
+        // Ignore stop errors
+      }
       setIsListening(false);
     }
     setTimeout(() => {
