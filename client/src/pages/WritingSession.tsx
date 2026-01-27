@@ -118,6 +118,7 @@ export default function WritingSession() {
   const [currentParagraphIndex, setCurrentParagraphIndex] = useState(0);
   const [currentParagraph, setCurrentParagraph] = useState({ topicSentence: "", supportingDetails: "" });
   const [conclusion, setConclusion] = useState("");
+  const [showAddAnotherPrompt, setShowAddAnotherPrompt] = useState(false);
   
   // Score preview state
   const [hookPreviewScore, setHookPreviewScore] = useState<{
@@ -377,6 +378,11 @@ export default function WritingSession() {
     setSession(updatedSession);
     setCurrentParagraph({ topicSentence: "", supportingDetails: "" });
     toast.success("Paragraph saved! 📝");
+    
+    // Show prompt to add another paragraph if this is the first one
+    if (updatedSession.bodyParagraphs.length === 1) {
+      setShowAddAnotherPrompt(true);
+    }
   };
   
   // Add another paragraph
@@ -390,6 +396,7 @@ export default function WritingSession() {
     
     setCurrentParagraphIndex(session.bodyParagraphs.length);
     setCurrentParagraph({ topicSentence: "", supportingDetails: "" });
+    setShowAddAnotherPrompt(false);
     toast.success("New paragraph ready! Keep writing! 📝");
   };
   
@@ -961,6 +968,39 @@ export default function WritingSession() {
                       </p>
                     </div>
                   ))}
+                </div>
+              )}
+              
+              {/* Prompt to add another paragraph after first one */}
+              {showAddAnotherPrompt && session.bodyParagraphs.length === 1 && (
+                <div className="p-4 bg-primary/10 border-2 border-primary rounded-lg animate-pulse">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                      <Plus className="w-5 h-5 text-primary-foreground" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-semibold text-foreground mb-1">
+                        Great job on your first paragraph! 🎉
+                      </p>
+                      <p className="text-sm text-muted-foreground mb-3">
+                        Ready to add more details? Click "Add Another" below to write your next paragraph!
+                      </p>
+                      <Button
+                        onClick={handleAddAnotherParagraph}
+                        size="sm"
+                        className="gap-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add Another Paragraph
+                      </Button>
+                    </div>
+                    <button
+                      onClick={() => setShowAddAnotherPrompt(false)}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      ×
+                    </button>
+                  </div>
                 </div>
               )}
               
