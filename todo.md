@@ -155,3 +155,5 @@
 - [x] Add "Load My Work" option on home page
 - [x] Display the save code to students with copy-to-clipboard functionality
 - [x] Add code expiration (30 days) to clean up old sessions
+
+- [x] Fix save session error: body paragraph IDs are numbers instead of strings, causing validation failure

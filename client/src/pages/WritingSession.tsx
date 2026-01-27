@@ -495,7 +495,11 @@ export default function WritingSession() {
           title: session.title,
           currentStep: session.currentStep,
           hook: session.hook,
-          bodyParagraphs: session.bodyParagraphs,
+          bodyParagraphs: session.bodyParagraphs.map(p => ({
+            id: String(p.id),
+            topicSentence: p.topicSentence,
+            supportingDetails: p.supportingDetails,
+          })),
           conclusion: session.conclusion,
           overallScores: session.overallScores,
         },
