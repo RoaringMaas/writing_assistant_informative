@@ -33,7 +33,13 @@ export default function Home() {
       });
 
       // Save loaded session to localStorage
-      localStorage.setItem(result.sessionData.sessionId, JSON.stringify(result.sessionData));
+      // sessionData is already an object from the database, just stringify it
+      const sessionToStore = {
+        ...result.sessionData,
+        createdAt: result.sessionData.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      localStorage.setItem("writing_session", JSON.stringify(sessionToStore));
       
       toast.success("Session loaded successfully!");
       setShowLoadDialog(false);

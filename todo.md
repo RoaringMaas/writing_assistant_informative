@@ -157,3 +157,5 @@
 - [x] Add code expiration (30 days) to clean up old sessions
 
 - [x] Fix save session error: body paragraph IDs are numbers instead of strings, causing validation failure
+
+- [x] Fix load session error: "hooks[lastArg] is not a function" when loading a saved session - Fixed by storing with correct localStorage key
