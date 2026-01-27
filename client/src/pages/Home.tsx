@@ -1,15 +1,48 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLocation } from "wouter";
-import { PenLine, BookOpen, Star, Sparkles } from "lucide-react";
+import { PenLine, BookOpen, Star, Sparkles, Download } from "lucide-react";
+import { useState } from "react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import { createSession } from "@/lib/sessionManager";
 
 export default function Home() {
   const [, setLocation] = useLocation();
+  const [showLoadDialog, setShowLoadDialog] = useState(false);
+  const [loadCode, setLoadCode] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleStartWriting = () => {
     const session = createSession();
     setLocation(`/write/${session.sessionId}`);
+  };
+
+  const handleLoadSession = async () => {
+    if (!loadCode.trim()) {
+      toast.error("Please enter a save code");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const result = await trpc.writing.loadSessionAnonymous.query({
+        saveCode: loadCode.trim().toUpperCase(),
+      });
+
+      // Save loaded session to localStorage
+      localStorage.setItem(result.sessionData.sessionId, JSON.stringify(result.sessionData));
+      
+      toast.success("Session loaded successfully!");
+      setShowLoadDialog(false);
+      setLocation(`/write/${result.sessionData.sessionId}`);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load session. Please check your code.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -27,7 +60,15 @@ export default function Home() {
             </div>
           </div>
           
-          {/* No login required - anonymous version */}
+          {/* Load My Work button */}
+          <Button
+            variant="outline"
+            onClick={() => setShowLoadDialog(true)}
+            className="gap-2"
+          >
+            <Download className="w-4 h-4" />
+            Load My Work
+          </Button>
         </nav>
       </header>
 
@@ -173,6 +214,48 @@ export default function Home() {
           Made with 💜 for young writers everywhere
         </p>
       </footer>
+
+      {/* Load Session Dialog */}
+      <Dialog open={showLoadDialog} onOpenChange={setShowLoadDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Load My Work</DialogTitle>
+            <DialogDescription>
+              Enter your 6-character save code to continue your writing.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Input
+              placeholder="Enter code (e.g., ABC123)"
+              value={loadCode}
+              onChange={(e) => setLoadCode(e.target.value.toUpperCase())}
+              maxLength={6}
+              className="text-center text-lg font-mono tracking-wider"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleLoadSession();
+                }
+              }}
+            />
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowLoadDialog(false)}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleLoadSession}
+                disabled={isLoading || loadCode.length < 6}
+                className="flex-1"
+              >
+                {isLoading ? "Loading..." : "Load Session"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

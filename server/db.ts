@@ -1,6 +1,6 @@
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, writingSessions, bodyParagraphs, sectionRevisions, InsertWritingSession, InsertBodyParagraph, WritingSession, BodyParagraph } from "../drizzle/schema";
+import { InsertUser, users, writingSessions, bodyParagraphs, sectionRevisions, savedSessions, InsertWritingSession, InsertBodyParagraph, WritingSession, BodyParagraph } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -214,4 +214,98 @@ export async function getSessionRevisions(sessionId: number) {
     .from(sectionRevisions)
     .where(eq(sectionRevisions.sessionId, sessionId))
     .orderBy(desc(sectionRevisions.createdAt));
+}
+
+// Saved Sessions (Anonymous Code-Based Save/Load)
+
+/**
+ * Generate a unique 6-character save code
+ */
+function generateSaveCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Exclude similar-looking characters
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+/**
+ * Save a session with a unique code
+ */
+export async function saveSessionWithCode(sessionData: any): Promise<string> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Generate unique code
+  let saveCode = generateSaveCode();
+  let attempts = 0;
+  const maxAttempts = 10;
+  
+  // Ensure code is unique
+  while (attempts < maxAttempts) {
+    const existing = await db.select()
+      .from(savedSessions)
+      .where(eq(savedSessions.saveCode, saveCode))
+      .limit(1);
+    
+    if (existing.length === 0) break;
+    saveCode = generateSaveCode();
+    attempts++;
+  }
+  
+  if (attempts >= maxAttempts) {
+    throw new Error("Failed to generate unique save code");
+  }
+  
+  // Set expiration to 30 days from now
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 30);
+  
+  await db.insert(savedSessions).values({
+    saveCode,
+    sessionData,
+    expiresAt,
+  });
+  
+  return saveCode;
+}
+
+/**
+ * Load a session by code
+ */
+export async function loadSessionByCode(saveCode: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.select()
+    .from(savedSessions)
+    .where(eq(savedSessions.saveCode, saveCode.toUpperCase()))
+    .limit(1);
+  
+  if (result.length === 0) return null;
+  
+  const savedSession = result[0];
+  
+  // Check if expired
+  if (new Date() > new Date(savedSession.expiresAt)) {
+    // Delete expired session
+    await db.delete(savedSessions).where(eq(savedSessions.id, savedSession.id));
+    return null;
+  }
+  
+  return savedSession.sessionData;
+}
+
+/**
+ * Clean up expired sessions (can be called periodically)
+ */
+export async function cleanupExpiredSessions(): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  
+  const result = await db.delete(savedSessions)
+    .where(lt(savedSessions.expiresAt, new Date()));
+  
+  return result.rowsAffected || 0;
 }

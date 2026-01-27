@@ -17,6 +17,9 @@ import {
   CheckCircle2,
   Home,
   Lightbulb,
+  Save,
+  Copy,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -143,12 +146,16 @@ export default function WritingSession() {
   const [helpContent, setHelpContent] = useState<{ tips: string[]; feedback?: string }>({ tips: [] });
   const [showWordBank, setShowWordBank] = useState(false);
   const [wordBank, setWordBank] = useState<string[]>([]);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saveCode, setSaveCode] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   
   // Backend mutations (still using tRPC for LLM scoring)
   const previewScoreMutation = trpc.writing.previewScoreAnonymous.useMutation();
   const intelligentFeedbackMutation = trpc.writing.getIntelligentFeedbackAnonymous.useMutation();
   const wordBankMutation = trpc.writing.getWordBankAnonymous.useMutation();
   const assessmentMutation = trpc.writing.performOverallAssessmentAnonymous.useMutation();
+  const saveSessionMutation = trpc.writing.saveSessionAnonymous.useMutation();
   
   // Load session from localStorage
   useEffect(() => {
@@ -476,6 +483,41 @@ export default function WritingSession() {
     }
   };
   
+  // Save session with code
+  const handleSaveSession = async () => {
+    if (!session) return;
+    
+    try {
+      const result = await saveSessionMutation.mutateAsync({
+        sessionData: {
+          sessionId: session.sessionId,
+          topic: session.topic,
+          title: session.title,
+          currentStep: session.currentStep,
+          hook: session.hook,
+          bodyParagraphs: session.bodyParagraphs,
+          conclusion: session.conclusion,
+          overallScores: session.overallScores,
+        },
+      });
+      
+      setSaveCode(result.saveCode);
+      setShowSaveDialog(true);
+      toast.success("Your work has been saved!");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to save session");
+    }
+  };
+  
+  const handleCopyCode = () => {
+    if (saveCode) {
+      navigator.clipboard.writeText(saveCode);
+      setCopied(true);
+      toast.success("Code copied to clipboard!");
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
   // Get help
   const handleGetHelp = async () => {
     if (!session) return;
@@ -638,6 +680,19 @@ export default function WritingSession() {
                 <Sparkles className="w-4 h-4" />
               )}
               Get Help
+            </Button>
+            <Button
+              variant="default"
+              onClick={handleSaveSession}
+              disabled={saveSessionMutation.isPending || !topic}
+              className="gap-2"
+            >
+              {saveSessionMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              Save My Work
             </Button>
           </div>
         </div>
@@ -1231,6 +1286,46 @@ export default function WritingSession() {
                 ))}
               </ul>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Save Session Dialog */}
+      <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Your Work is Saved! 🎉</DialogTitle>
+            <DialogDescription>
+              Use this code to load your work later. Keep it safe!
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="p-6 bg-primary/10 rounded-lg text-center">
+              <p className="text-sm text-muted-foreground mb-2">Your Save Code:</p>
+              <p className="text-4xl font-bold font-mono tracking-wider text-primary">
+                {saveCode}
+              </p>
+            </div>
+            <Button
+              onClick={handleCopyCode}
+              className="w-full gap-2"
+              variant={copied ? "outline" : "default"}
+            >
+              {copied ? (
+                <>
+                  <Check className="w-4 h-4" />
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4" />
+                  Copy Code
+                </>
+              )}
+            </Button>
+            <p className="text-xs text-muted-foreground text-center">
+              This code will expire in 30 days. Write it down or take a screenshot!
+            </p>
           </div>
         </DialogContent>
       </Dialog>

@@ -144,3 +144,14 @@
 - [x] Fix VoiceInput component error: "recognition has already started" when clicking microphone button multiple times
 
 - [x] Fix voice transcription: transcribed text sometimes doesn't appear in text field (intermittent issue) - Fixed by using useRef instead of state
+- [ ] Fix voice recognition showing "no speech detected" even when user speaks to microphone
+
+
+## Save/Load Feature (2026-01-27)
+- [x] Design database schema for anonymous saved sessions with unique codes
+- [x] Create backend endpoint to save session and generate unique 6-character code
+- [x] Create backend endpoint to load session by code
+- [x] Add "Save My Work" button to WritingSession page
+- [x] Add "Load My Work" option on home page
+- [x] Display the save code to students with copy-to-clipboard functionality
+- [x] Add code expiration (30 days) to clean up old sessions

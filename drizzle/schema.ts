@@ -103,3 +103,30 @@ export const sectionRevisions = mysqlTable("section_revisions", {
 
 export type SectionRevision = typeof sectionRevisions.$inferSelect;
 export type InsertSectionRevision = typeof sectionRevisions.$inferInsert;
+
+/**
+ * Saved sessions - anonymous code-based save/load system
+ */
+export const savedSessions = mysqlTable("saved_sessions", {
+  id: int("id").autoincrement().primaryKey(),
+  saveCode: varchar("saveCode", { length: 10 }).notNull().unique(),
+  sessionData: json("sessionData").$type<{
+    sessionId: string;
+    topic: string;
+    title: string;
+    currentStep: number;
+    hook: string;
+    bodyParagraphs: Array<{
+      id: string;
+      topicSentence: string;
+      supportingDetails: string;
+    }>;
+    conclusion: string;
+    overallScores: any;
+  }>().notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type SavedSession = typeof savedSessions.$inferSelect;
+export type InsertSavedSession = typeof savedSessions.$inferInsert;

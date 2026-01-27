@@ -15,7 +15,10 @@ import {
   updateBodyParagraph,
   deleteBodyParagraph,
   addSectionRevision,
+  saveSessionWithCode,
+  loadSessionByCode,
 } from "./db";
+import { TRPCError } from "@trpc/server";
 
 // Scoring schema for LLM response
 const scoringSchema = {
@@ -1103,6 +1106,45 @@ Generate helpful vocabulary words.`,
           totalWordCount: assessment.totalWordCount,
           wordCountStatus: assessment.wordCountStatus,
         };
+      }),
+
+    // Anonymous: Save session with code
+    saveSessionAnonymous: publicProcedure
+      .input(z.object({
+        sessionData: z.object({
+          sessionId: z.string(),
+          topic: z.string(),
+          title: z.string(),
+          currentStep: z.number(),
+          hook: z.string(),
+          bodyParagraphs: z.array(z.object({
+            id: z.string(),
+            topicSentence: z.string(),
+            supportingDetails: z.string(),
+          })),
+          conclusion: z.string(),
+          overallScores: z.any().optional(),
+        }),
+      }))
+      .mutation(async ({ input }) => {
+        const saveCode = await saveSessionWithCode(input.sessionData);
+        return { saveCode };
+      }),
+
+    // Anonymous: Load session by code
+    loadSessionAnonymous: publicProcedure
+      .input(z.object({
+        saveCode: z.string(),
+      }))
+      .query(async ({ input }) => {
+        const sessionData = await loadSessionByCode(input.saveCode);
+        if (!sessionData) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Session not found or expired',
+          });
+        }
+        return { sessionData };
       }),
   }),
 });

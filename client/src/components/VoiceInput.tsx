@@ -45,8 +45,10 @@ interface VoiceInputProps {
 export function VoiceInput({ onTranscript, disabled = false }: VoiceInputProps) {
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
+  const [interimText, setInterimText] = useState(""); // Show interim results
   const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const transcriptRef = useRef<string>(""); // Use ref to avoid state timing issues
+  const finalTranscriptRef = useRef<string>(""); // Store final transcript
+  const hasReceivedSpeechRef = useRef<boolean>(false); // Track if we received any speech
 
   type SpeechRecognitionConstructor = typeof SpeechRecognition | typeof webkitSpeechRecognition;
 
@@ -66,12 +68,16 @@ export function VoiceInput({ onTranscript, disabled = false }: VoiceInputProps) 
     recognition.lang = "en-US"; // English only
 
     recognition.onstart = () => {
+      console.log("Speech recognition started");
       setIsListening(true);
-      transcriptRef.current = ""; // Reset transcript ref on start
+      finalTranscriptRef.current = "";
+      hasReceivedSpeechRef.current = false;
+      setInterimText("");
       toast.info("🎤 Listening... Speak now!");
     };
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
+      console.log("Speech recognition result received");
       let interimTranscript = "";
       let finalTranscript = "";
 
@@ -79,13 +85,23 @@ export function VoiceInput({ onTranscript, disabled = false }: VoiceInputProps) 
         const transcriptPiece = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
           finalTranscript += transcriptPiece + " ";
+          console.log("Final transcript piece:", transcriptPiece);
         } else {
           interimTranscript += transcriptPiece;
+          console.log("Interim transcript piece:", transcriptPiece);
         }
       }
 
-      // Update ref directly for immediate access in stopListening
-      transcriptRef.current += finalTranscript;
+      // Update refs and state
+      if (finalTranscript) {
+        finalTranscriptRef.current += finalTranscript;
+        hasReceivedSpeechRef.current = true;
+      }
+      
+      if (interimTranscript) {
+        setInterimText(interimTranscript);
+        hasReceivedSpeechRef.current = true;
+      }
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -95,14 +111,19 @@ export function VoiceInput({ onTranscript, disabled = false }: VoiceInputProps) 
       if (event.error === "not-allowed") {
         toast.error("Microphone access denied. Please allow microphone access to use voice input.");
       } else if (event.error === "no-speech") {
-        toast.warning("No speech detected. Try again!");
+        toast.warning("No speech detected. Try speaking louder or closer to the microphone.");
+      } else if (event.error === "aborted") {
+        // Ignore aborted errors (user stopped manually)
+        console.log("Speech recognition aborted by user");
       } else {
-        toast.error("Speech recognition error. Please try again.");
+        toast.error(`Speech recognition error: ${event.error}`);
       }
     };
 
     recognition.onend = () => {
+      console.log("Speech recognition ended");
       setIsListening(false);
+      setInterimText("");
     };
 
     recognitionRef.current = recognition;
@@ -122,7 +143,9 @@ export function VoiceInput({ onTranscript, disabled = false }: VoiceInputProps) 
     if (!recognitionRef.current || disabled || isListening) return;
 
     try {
-      transcriptRef.current = ""; // Reset transcript ref
+      finalTranscriptRef.current = "";
+      hasReceivedSpeechRef.current = false;
+      setInterimText("");
       recognitionRef.current.start();
     } catch (error) {
       console.error("Error starting recognition:", error);
@@ -136,18 +159,42 @@ export function VoiceInput({ onTranscript, disabled = false }: VoiceInputProps) 
     recognitionRef.current.stop();
     setIsListening(false);
 
-    // Use ref value directly to avoid state timing issues
-    const finalTranscript = transcriptRef.current.trim();
-    if (finalTranscript) {
-      onTranscript(finalTranscript);
-      toast.success("✓ Voice input added!");
-    } else {
-      toast.warning("No speech detected. Please try again.");
-    }
+    // Wait a moment for final results to come through
+    setTimeout(() => {
+      const finalTranscript = finalTranscriptRef.current.trim();
+      const hasReceivedSpeech = hasReceivedSpeechRef.current;
+      
+      console.log("Final transcript:", finalTranscript);
+      console.log("Has received speech:", hasReceivedSpeech);
+      console.log("Interim text:", interimText);
+      
+      // If we have final transcript, use it
+      if (finalTranscript) {
+        onTranscript(finalTranscript);
+        toast.success("✓ Voice input added!");
+      } 
+      // If no final transcript but we have interim text, use that
+      else if (interimText.trim()) {
+        onTranscript(interimText.trim());
+        toast.success("✓ Voice input added!");
+      }
+      // If we received speech events but no transcript, show warning
+      else if (hasReceivedSpeech) {
+        toast.warning("Could not transcribe clearly. Please try again.");
+      }
+      // No speech detected at all
+      else {
+        toast.warning("No speech detected. Please try speaking louder or closer to the microphone.");
+      }
+      
+      setInterimText("");
+    }, 300); // Wait 300ms for final results
   };
 
   const tryAgain = () => {
-    transcriptRef.current = "";
+    finalTranscriptRef.current = "";
+    hasReceivedSpeechRef.current = false;
+    setInterimText("");
     if (recognitionRef.current && isListening) {
       try {
         recognitionRef.current.stop();
@@ -160,7 +207,7 @@ export function VoiceInput({ onTranscript, disabled = false }: VoiceInputProps) 
       if (!isListening) {
         startListening();
       }
-    }, 200);
+    }, 300);
   };
 
   if (!isSupported) {
@@ -168,44 +215,53 @@ export function VoiceInput({ onTranscript, disabled = false }: VoiceInputProps) 
   }
 
   return (
-    <div className="flex items-center gap-2">
-      {!isListening ? (
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          onClick={startListening}
-          disabled={disabled}
-          className="shrink-0"
-          title="Click to speak"
-        >
-          <Mic className="h-4 w-4" />
-        </Button>
-      ) : (
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="destructive"
-            size="icon"
-            onClick={stopListening}
-            className="shrink-0 animate-pulse"
-            title="Stop recording"
-          >
-            <MicOff className="h-4 w-4" />
-          </Button>
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        {!isListening ? (
           <Button
             type="button"
             variant="outline"
             size="icon"
-            onClick={tryAgain}
+            onClick={startListening}
+            disabled={disabled}
             className="shrink-0"
-            title="Try again"
+            title="Click to speak"
           >
-            <RotateCcw className="h-4 w-4" />
+            <Mic className="h-4 w-4" />
           </Button>
-          <span className="text-sm text-muted-foreground animate-pulse">
-            Listening...
-          </span>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="destructive"
+              size="icon"
+              onClick={stopListening}
+              className="shrink-0 animate-pulse"
+              title="Stop recording"
+            >
+              <MicOff className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={tryAgain}
+              className="shrink-0"
+              title="Try again"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+            <span className="text-sm text-muted-foreground animate-pulse">
+              Listening...
+            </span>
+          </div>
+        )}
+      </div>
+      
+      {/* Show interim transcript while listening */}
+      {isListening && interimText && (
+        <div className="text-xs text-muted-foreground italic border-l-2 border-primary pl-2">
+          Hearing: "{interimText}"
         </div>
       )}
     </div>
