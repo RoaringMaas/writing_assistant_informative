@@ -272,7 +272,7 @@ export const appRouter = router({
   writing: router({
     // Create a new writing session
     create: publicProcedure.mutation(async ({ ctx }) => {
-      const sessionId = await createWritingSession(ctx.user.id);
+      const sessionId = await createWritingSession(ctx.user?.id || 0);
       return { sessionId };
     }),
 
@@ -280,7 +280,7 @@ export const appRouter = router({
     get: publicProcedure
       .input(z.object({ sessionId: z.number() }))
       .query(async ({ ctx, input }) => {
-        const session = await getWritingSession(input.sessionId, ctx.user.id);
+        const session = await getWritingSession(input.sessionId, ctx.user?.id || 0);
         if (!session) return null;
         const paragraphs = await getBodyParagraphs(input.sessionId);
         return { session, paragraphs };
@@ -288,14 +288,14 @@ export const appRouter = router({
 
     // List all sessions for user
     list: publicProcedure.query(async ({ ctx }) => {
-      return getUserWritingSessions(ctx.user.id);
+      return getUserWritingSessions(ctx.user?.id || 0);
     }),
 
     // Delete a session
     delete: publicProcedure
       .input(z.object({ sessionId: z.number() }))
       .mutation(async ({ ctx, input }) => {
-        await deleteWritingSession(input.sessionId, ctx.user.id);
+        await deleteWritingSession(input.sessionId, ctx.user?.id || 0);
         return { success: true };
       }),
 
@@ -307,7 +307,7 @@ export const appRouter = router({
         title: z.string().min(1).max(255),
       }))
       .mutation(async ({ ctx, input }) => {
-        const session = await getWritingSession(input.sessionId, ctx.user.id);
+        const session = await getWritingSession(input.sessionId, ctx.user?.id || 0);
         if (!session) throw new Error("Session not found");
         
         await updateWritingSession(input.sessionId, {
@@ -326,7 +326,7 @@ export const appRouter = router({
         hook: z.string().min(1),
       }))
       .mutation(async ({ ctx, input }) => {
-        const session = await getWritingSession(input.sessionId, ctx.user.id);
+        const session = await getWritingSession(input.sessionId, ctx.user?.id || 0);
         if (!session) throw new Error("Session not found");
         
         // Score the hook
@@ -369,7 +369,7 @@ export const appRouter = router({
         supportingDetails: z.string().min(1),
       }))
       .mutation(async ({ ctx, input }) => {
-        const session = await getWritingSession(input.sessionId, ctx.user.id);
+        const session = await getWritingSession(input.sessionId, ctx.user?.id || 0);
         if (!session) throw new Error("Session not found");
         
         const fullParagraph = `${input.topicSentence}\n${input.supportingDetails}`;
@@ -429,7 +429,7 @@ export const appRouter = router({
     addParagraph: publicProcedure
       .input(z.object({ sessionId: z.number() }))
       .mutation(async ({ ctx, input }) => {
-        const session = await getWritingSession(input.sessionId, ctx.user.id);
+        const session = await getWritingSession(input.sessionId, ctx.user?.id || 0);
         if (!session) throw new Error("Session not found");
         
         const paragraphs = await getBodyParagraphs(input.sessionId);
@@ -443,7 +443,7 @@ export const appRouter = router({
     moveToConclusion: publicProcedure
       .input(z.object({ sessionId: z.number() }))
       .mutation(async ({ ctx, input }) => {
-        const session = await getWritingSession(input.sessionId, ctx.user.id);
+        const session = await getWritingSession(input.sessionId, ctx.user?.id || 0);
         if (!session) throw new Error("Session not found");
         
         await updateWritingSession(input.sessionId, { currentStep: 4 });
@@ -457,7 +457,7 @@ export const appRouter = router({
         conclusion: z.string().min(1),
       }))
       .mutation(async ({ ctx, input }) => {
-        const session = await getWritingSession(input.sessionId, ctx.user.id);
+        const session = await getWritingSession(input.sessionId, ctx.user?.id || 0);
         if (!session) throw new Error("Session not found");
         
         // Score conclusion for transitions/cohesion
@@ -484,7 +484,7 @@ export const appRouter = router({
     getOverallAssessment: publicProcedure
       .input(z.object({ sessionId: z.number() }))
       .mutation(async ({ ctx, input }) => {
-        const session = await getWritingSession(input.sessionId, ctx.user.id);
+        const session = await getWritingSession(input.sessionId, ctx.user?.id || 0);
         if (!session) throw new Error("Session not found");
         
         const paragraphs = await getBodyParagraphs(input.sessionId);
@@ -555,7 +555,7 @@ export const appRouter = router({
         score: z.number().min(1).max(3),
       }))
       .mutation(async ({ ctx, input }) => {
-        const session = await getWritingSession(input.sessionId, ctx.user.id);
+        const session = await getWritingSession(input.sessionId, ctx.user?.id || 0);
         if (!session) throw new Error("Session not found");
         
         const currentScores = session.overallScores || {
@@ -585,11 +585,11 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         // Check if user is teacher or admin
-        if (ctx.user.role !== "teacher" && ctx.user.role !== "admin") {
+        if (ctx.user?.role !== "teacher" && ctx.user?.role !== "admin") {
           throw new Error("Only teachers can update scores");
         }
         
-        const session = await getWritingSession(input.sessionId, ctx.user.id);
+        const session = await getWritingSession(input.sessionId, ctx.user?.id || 0);
         if (!session) throw new Error("Session not found");
         
         const currentScores = session.overallScores || {
@@ -620,7 +620,7 @@ export const appRouter = router({
         newContent: z.string().min(1),
       }))
       .mutation(async ({ ctx, input }) => {
-        const session = await getWritingSession(input.sessionId, ctx.user.id);
+        const session = await getWritingSession(input.sessionId, ctx.user?.id || 0);
         if (!session) throw new Error("Session not found");
         
         let previousContent = "";
@@ -691,7 +691,7 @@ export const appRouter = router({
         content: z.string(),
       }))
       .mutation(async ({ ctx, input }) => {
-        const session = await getWritingSession(input.sessionId, ctx.user.id);
+        const session = await getWritingSession(input.sessionId, ctx.user?.id || 0);
         if (!session) throw new Error("Session not found");
         
         // Calculate TOTAL word count across all sections (like final assessment does)
@@ -810,7 +810,7 @@ export const appRouter = router({
         currentContent: z.string(),
       }))
       .mutation(async ({ ctx, input }) => {
-        const session = await getWritingSession(input.sessionId, ctx.user.id);
+        const session = await getWritingSession(input.sessionId, ctx.user?.id || 0);
         if (!session) throw new Error("Session not found");
         
         const response = await invokeLLM({

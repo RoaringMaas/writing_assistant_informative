@@ -31,9 +31,9 @@ export default function Home() {
         conclusion: result.sessionData.conclusion || "",
         currentStep: result.sessionData.currentStep || 1,
         overallScores: result.sessionData.overallScores || null,
-        overallFeedback: result.sessionData.overallFeedback || null,
-        selfAssessment: result.sessionData.selfAssessment || null,
-        createdAt: result.sessionData.createdAt || new Date().toISOString(),
+        overallFeedback: (result.sessionData as any).overallFeedback || null,
+        selfAssessment: (result.sessionData as any).selfAssessment || null,
+        createdAt: (result.sessionData as any).createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
       

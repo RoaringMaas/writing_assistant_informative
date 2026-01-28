@@ -307,5 +307,5 @@ export async function cleanupExpiredSessions(): Promise<number> {
   const result = await db.delete(savedSessions)
     .where(lt(savedSessions.expiresAt, new Date()));
   
-  return result.rowsAffected || 0;
+  return (result as any).rowsAffected || 0;
 }
