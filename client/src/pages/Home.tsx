@@ -96,7 +96,7 @@ export default function Home() {
         <div className="max-w-4xl mx-auto text-center mb-16">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/20 text-accent-foreground mb-6">
             <Sparkles className="w-4 h-4" />
-            <span className="text-sm font-medium">Learn to Write Amazing Stories!</span>
+            <span className="text-sm font-medium">Master the Art of Informative Writing!</span>
           </div>
           
           <h2 className="text-4xl md:text-5xl font-extrabold text-foreground mb-6 leading-tight">
