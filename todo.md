@@ -179,3 +179,4 @@
 
 ## Vercel Deployment Fix (2026-01-28)
 - [x] Fix vercel.json schema validation error - remove invalid nodeVersion property
+- [x] Fix vercel.json framework property - remove invalid "other" value, use minimal configuration
