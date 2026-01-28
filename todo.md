@@ -175,3 +175,7 @@
 - [x] Add visual prompt after paragraph 1 completion to guide users to click "Add Another" before typing paragraph 2
 
 - [x] Update paragraph prompt to appear after EVERY paragraph save (not just first one) to support students writing 3+ paragraphs
+
+
+## Vercel Deployment Fix (2026-01-28)
+- [x] Fix vercel.json schema validation error - remove invalid nodeVersion property
