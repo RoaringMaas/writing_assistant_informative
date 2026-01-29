@@ -262,9 +262,11 @@ export const appRouter = router({
         conclusion: z.string(),
       }))
       .mutation(async () => {
+        // Generate a random 6-character save code
+        const saveCode = Math.random().toString(36).substring(2, 8).toUpperCase();
         // In cost-free version, we don't save to database
-        // Just return success
-        return { success: true, message: "Session saved locally only (cost-free version)" };
+        // Just return success with the save code
+        return { success: true, saveCode, message: "Session saved locally only (cost-free version)" };
       }),
 
     previewScoreAnonymous: publicProcedure

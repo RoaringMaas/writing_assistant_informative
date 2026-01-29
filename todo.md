@@ -229,3 +229,5 @@
 - [x] Fix assessment result mapping to access result.scores.* instead of result.*
 
 - [x] Fix saveSessionAnonymous validation error: all parameters (sessionId, studentName, topic, title, hook, bodyParagraphs, conclusion) are undefined
+
+- [x] Fix save code not being displayed in the save dialog - backend now generates and returns random 6-character code
