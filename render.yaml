@@ -1,0 +1,43 @@
+services:
+  - type: web
+    name: writing-assistant
+    runtime: node
+    plan: starter
+    buildCommand: pnpm install && pnpm run build && pnpm run db:push
+    startCommand: pnpm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: writing-assistant-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: BUILT_IN_FORGE_API_KEY
+        sync: false
+      - key: BUILT_IN_FORGE_API_URL
+        sync: false
+      - key: VITE_FRONTEND_FORGE_API_KEY
+        sync: false
+      - key: VITE_FRONTEND_FORGE_API_URL
+        sync: false
+      - key: OAUTH_SERVER_URL
+        value: https://api.manus.im
+      - key: VITE_OAUTH_PORTAL_URL
+        value: https://login.manus.im
+      - key: VITE_APP_ID
+        sync: false
+      - key: VITE_APP_TITLE
+        value: Lower Primary Writing Assistant
+      - key: VITE_APP_LOGO
+        value: /logo.svg
+      - key: OWNER_OPEN_ID
+        sync: false
+      - key: OWNER_NAME
+        sync: false
+
+databases:
+  - name: writing-assistant-db
+    databaseName: writing_assistant
+    plan: starter
