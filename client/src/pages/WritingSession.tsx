@@ -808,6 +808,18 @@ export default function WritingSession() {
             <CardContent className="space-y-6">
               <div>
                 <label className="block text-sm font-medium mb-2">
+                  Your Name
+                </label>
+                <Input
+                  value={session.studentName}
+                  onChange={(e) => updateSession({ studentName: e.target.value })}
+                  placeholder="Enter your name..."
+                  className="text-lg"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-2">
                   Your Topic
                 </label>
                 <Input

@@ -180,3 +180,10 @@
 ## Vercel Deployment Fix (2026-01-28)
 - [x] Fix vercel.json schema validation error - remove invalid nodeVersion property
 - [x] Fix vercel.json framework property - remove invalid "other" value, use minimal configuration
+
+
+## Customizable Certificate Name (2026-01-28)
+- [x] Add studentName field to session data structure in sessionManager.ts
+- [x] Add name input field to WritingSession page (at the beginning or on topic step)
+- [x] Update Certificate.tsx to use the custom student name instead of "Young Writer"
+- [x] Update sessionData type definitions to include studentName

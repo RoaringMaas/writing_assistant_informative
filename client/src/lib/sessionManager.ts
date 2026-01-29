@@ -12,6 +12,7 @@ export interface BodyParagraph {
 
 export interface WritingSession {
   sessionId: string;
+  studentName: string;
   topic: string;
   title: string;
   hook: string;
@@ -57,6 +58,7 @@ function generateSessionId(): string {
 export function createSession(): WritingSession {
   const session: WritingSession = {
     sessionId: generateSessionId(),
+    studentName: "",
     topic: "",
     title: "",
     hook: "",
