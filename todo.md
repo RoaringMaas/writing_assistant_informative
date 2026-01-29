@@ -187,3 +187,5 @@
 - [x] Add name input field to WritingSession page (at the beginning or on topic step)
 - [x] Update Certificate.tsx to use the custom student name instead of "Young Writer"
 - [x] Update sessionData type definitions to include studentName
+
+- [x] Fix name input field not working - can't type in the "Your Name" field on Topic Selection page

@@ -112,6 +112,7 @@ export default function WritingSession() {
   const [loading, setLoading] = useState(true);
   
   // Form state
+  const [studentName, setStudentName] = useState("");
   const [topic, setTopic] = useState("");
   const [title, setTitle] = useState("");
   const [hook, setHook] = useState("");
@@ -163,6 +164,7 @@ export default function WritingSession() {
     const loadedSession = getSession();
     if (loadedSession && loadedSession.sessionId === sessionId) {
       setSession(loadedSession);
+      setStudentName(loadedSession.studentName || "");
       setTopic(loadedSession.topic);
       setTitle(loadedSession.title);
       setHook(loadedSession.hook);
@@ -811,8 +813,11 @@ export default function WritingSession() {
                   Your Name
                 </label>
                 <Input
-                  value={session.studentName}
-                  onChange={(e) => updateSession({ studentName: e.target.value })}
+                  value={studentName}
+                  onChange={(e) => {
+                    setStudentName(e.target.value);
+                    updateSession({ studentName: e.target.value });
+                  }}
                   placeholder="Enter your name..."
                   className="text-lg"
                 />
