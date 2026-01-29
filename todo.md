@@ -222,3 +222,8 @@
 
 ## Bug Fixes (2026-01-29)
 - [x] Fix getIntelligentFeedbackAnonymous validation error: invalid section parameter and undefined content parameter
+
+- [x] Remove AI Feedback section from final assessment page (no AI in cost-free version)
+- [x] Fix total score display showing "NaN/18" instead of actual score
+- [x] Fix sub-scores display showing thumbs down "/3" instead of actual numeric scores
+- [x] Fix assessment result mapping to access result.scores.* instead of result.*

@@ -50,16 +50,17 @@ interface ScoreDisplayProps {
 }
 
 function ScoreDisplay({ score, label, feedback }: ScoreDisplayProps) {
-  const scoreClass = score === 3 ? "score-3" : score === 2 ? "score-2" : "score-1";
-  const emoji = score === 3 ? "⭐" : score === 2 ? "👍" : "💪";
-  const message = score === 3 ? "Amazing!" : score === 2 ? "Good job!" : "Keep trying!";
+  const safeScore = score || 0;
+  const scoreClass = safeScore === 3 ? "score-3" : safeScore === 2 ? "score-2" : "score-1";
+  const emoji = safeScore === 3 ? "⭐" : safeScore === 2 ? "👍" : "💪";
+  const message = safeScore === 3 ? "Amazing work!" : safeScore === 2 ? "Good job!" : "Keep trying!";
   
   return (
     <div className="encouragement">
       <div className="flex items-center justify-between mb-2">
         <span className="font-medium text-sm">{label}</span>
         <span className={`score-badge ${scoreClass}`}>
-          {emoji} {score}/3
+          {emoji} {safeScore}/3
         </span>
       </div>
       <p className="text-sm text-muted-foreground">{message}</p>
@@ -559,12 +560,12 @@ export default function WritingSession() {
       
       const updated = updateSession({
         overallScores: {
-          titleSubtitles: result.titleSubtitles,
-          hook: result.hook,
-          relevantInfo: result.relevantInfo,
-          transitions: result.transitions,
-          accuracy: result.accuracy,
-          vocabulary: result.vocabulary,
+          titleSubtitles: result.scores.titleSubtitles,
+          hook: result.scores.hook,
+          relevantInfo: result.scores.relevantInfo,
+          transitions: result.scores.transitions,
+          accuracy: result.scores.accuracy,
+          vocabulary: result.scores.vocabulary,
         },
         overallFeedback: {
           titleSubtitles: result.feedback.titleSubtitles,
@@ -902,12 +903,7 @@ export default function WritingSession() {
                     label="Hook Score"
                     feedback={hookPreviewScore.feedback}
                   />
-                  {hookPreviewScore.aiFeedback && (
-                    <div className="mt-3 p-3 bg-primary/5 rounded-lg border border-primary/10">
-                      <p className="text-sm font-medium mb-1">✨ AI Feedback:</p>
-                      <p className="text-sm text-foreground">{hookPreviewScore.aiFeedback}</p>
-                    </div>
-                  )}
+
                 </div>
               )}
               
@@ -1073,12 +1069,7 @@ export default function WritingSession() {
                     label="Body Paragraph Score"
                     feedback={bodyPreviewScore.feedback}
                   />
-                  {bodyPreviewScore.aiFeedback && (
-                    <div className="mt-3 p-3 bg-primary/5 rounded-lg border border-primary/10">
-                      <p className="text-sm font-medium mb-1">✨ AI Feedback:</p>
-                      <p className="text-sm text-foreground">{bodyPreviewScore.aiFeedback}</p>
-                    </div>
-                  )}
+
                 </div>
               )}
               
@@ -1185,12 +1176,7 @@ export default function WritingSession() {
                     label="Conclusion Score"
                     feedback={conclusionPreviewScore.feedback}
                   />
-                  {conclusionPreviewScore.aiFeedback && (
-                    <div className="mt-3 p-3 bg-primary/5 rounded-lg border border-primary/10">
-                      <p className="text-sm font-medium mb-1">✨ AI Feedback:</p>
-                      <p className="text-sm text-foreground">{conclusionPreviewScore.aiFeedback}</p>
-                    </div>
-                  )}
+
                 </div>
               )}
               
@@ -1241,7 +1227,7 @@ export default function WritingSession() {
                 <div className="space-y-4">
                   <div className="text-center p-6 bg-primary/10 rounded-lg border-2 border-primary/20">
                     <p className="text-4xl font-bold text-primary mb-2">
-                      {session.overallScores.titleSubtitles + session.overallScores.hook + session.overallScores.relevantInfo + session.overallScores.transitions + session.overallScores.accuracy + session.overallScores.vocabulary}/18
+                      {(session.overallScores.titleSubtitles || 0) + (session.overallScores.hook || 0) + (session.overallScores.relevantInfo || 0) + (session.overallScores.transitions || 0) + (session.overallScores.accuracy || 0) + (session.overallScores.vocabulary || 0)}/18
                     </p>
                     <p className="text-lg text-muted-foreground">Total Score</p>
                     <p className="text-sm text-muted-foreground mt-2">
@@ -1267,7 +1253,7 @@ export default function WritingSession() {
                       View Article
                     </Button>
                     
-                    {(session.overallScores.titleSubtitles + session.overallScores.hook + session.overallScores.relevantInfo + session.overallScores.transitions + session.overallScores.accuracy + session.overallScores.vocabulary) >= 14 && (
+                    {((session.overallScores.titleSubtitles || 0) + (session.overallScores.hook || 0) + (session.overallScores.relevantInfo || 0) + (session.overallScores.transitions || 0) + (session.overallScores.accuracy || 0) + (session.overallScores.vocabulary || 0)) >= 14 && (
                       <Button
                         onClick={() => setLocation(`/certificate/${sessionId}`)}
                         className="flex-1 btn-fun"
