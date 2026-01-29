@@ -242,3 +242,6 @@
 
 ## Bug Fixes (2026-01-29 - Continued)
 - [x] Fix invalid hook call in WritingSession: moved trpc.getWordBankAnonymous.useQuery() from inside useEffect to top level with enabled option
+
+## Bug Fixes (2026-01-29 - React Key Warning)
+- [x] Fix React key warning: changed bodyParagraphs.map key from numeric para.id to string `para-${para.id}` for proper list rendering

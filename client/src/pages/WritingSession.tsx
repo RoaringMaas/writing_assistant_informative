@@ -932,7 +932,7 @@ export default function WritingSession() {
                 <div className="space-y-2">
                   <p className="text-sm font-medium">Saved Paragraphs:</p>
                   {session.bodyParagraphs.map((para, index) => (
-                    <div key={para.id} className="p-3 bg-accent/10 rounded-lg border border-accent/20">
+                    <div key={`para-${para.id}`} className="p-3 bg-accent/10 rounded-lg border border-accent/20">
                       <p className="text-sm font-medium">Paragraph {index + 1}</p>
                       <p className="text-sm text-muted-foreground mt-1">
                         {para.topicSentence.substring(0, 50)}...
