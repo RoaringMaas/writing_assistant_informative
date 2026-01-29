@@ -245,3 +245,5 @@
 
 ## Bug Fixes (2026-01-29 - React Key Warning)
 - [x] Fix React key warning: changed bodyParagraphs.map key from numeric para.id to string `para-${para.id}` for proper list rendering
+
+- [x] Fix React key warning for duplicate keys: changed key from `para-${para.id}` to use index as fallback when ID is undefined (`para-${para.id}` or `para-index-${index}`)
