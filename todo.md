@@ -208,3 +208,13 @@
 - [x] Create comprehensive documentation (COST_FREE_VERSION.md)
 - [x] Document feature comparison between versions
 - [x] Provide customization examples
+
+
+## Switch to Cost-Free Version (2026-01-29)
+- [x] Replace routers.ts with cost-free version
+- [x] Add all anonymous procedures (getWordBankAnonymous, getHelpAnonymous, getIntelligentFeedbackAnonymous, performOverallAssessmentAnonymous, saveSessionAnonymous)
+- [x] Fix procedure type mismatch (changed from query to mutation)
+- [x] Restart server
+- [x] Test that scoring works without LLM calls
+- [x] Test word bank with static vocabulary
+- [x] Verify zero API costs
