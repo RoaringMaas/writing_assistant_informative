@@ -9,13 +9,39 @@ import { z } from "zod";
 function scoreContentStatic(section: string, content: string, topic: string): { score: number; feedback: string } {
   const wordCount = content.trim().split(/\s+/).length;
   
+  let feedback = "";
+  let score = 0;
+  
   if (wordCount < 5) {
-    return { score: 1, feedback: "Your writing is too short. Add more details!" };
+    score = 1;
+    if (section === "hook") {
+      feedback = "Your hook is too short. Try asking a question or sharing an interesting fact to grab your reader's attention!";
+    } else if (section === "body") {
+      feedback = "Your paragraph needs more details. Add 2-3 facts or examples to support your main idea.";
+    } else {
+      feedback = "Your conclusion is too short. Summarize your main points and remind the reader why your topic matters.";
+    }
   } else if (wordCount < 15) {
-    return { score: 2, feedback: "Good start! Try to add more information." };
+    score = 2;
+    if (section === "hook") {
+      feedback = "Good start! Your hook is interesting. Try making it even more engaging with a surprising fact or question.";
+    } else if (section === "body") {
+      feedback = "Good effort! Your paragraph has details. Try adding more specific examples or facts to make it stronger.";
+    } else {
+      feedback = "Good conclusion! You've summarized your ideas. Try adding one more thought to make it more memorable.";
+    }
   } else {
-    return { score: 3, feedback: "Excellent work! You've written a strong section." };
+    score = 3;
+    if (section === "hook") {
+      feedback = "Amazing hook! You've grabbed your reader's attention with an engaging opening. Excellent work!";
+    } else if (section === "body") {
+      feedback = "Excellent paragraph! You've included great details and examples. Your writing is very clear and interesting!";
+    } else {
+      feedback = "Perfect conclusion! You've wrapped up your essay beautifully. Your ending is memorable and strong!";
+    }
   }
+  
+  return { score, feedback };
 }
 
 // Static tips based on section
@@ -205,6 +231,16 @@ export const writingRouter = router({
       // Calculate total score (out of 18: 3 points each for 6 criteria)
       const totalScore = titleScore.score + hookScore.score + bodyScore + conclusionScore.score;
       
+      // Generate score-specific feedback based on total score
+      let feedback = "";
+      if (totalScore <= 6) {
+        feedback = "Keep trying! Your writing is just starting. Focus on adding more details and making your sentences longer.";
+      } else if (totalScore <= 12) {
+        feedback = "Good job! You're making progress. Try adding more interesting details and using transition words to connect your ideas.";
+      } else {
+        feedback = "Excellent work! Your writing is strong and well-developed. Keep practicing to become an even better writer!";
+      }
+      
       return {
         scores: {
           titleSubtitles: titleScore.score,
@@ -215,7 +251,7 @@ export const writingRouter = router({
           vocabulary: conclusionScore.score,
         },
         totalScore: totalScore,
-        feedback: "Great job! Keep practicing your writing skills!",
+        feedback: feedback,
       };
     }),
   auth: router({

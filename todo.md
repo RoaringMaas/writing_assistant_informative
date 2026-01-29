@@ -247,3 +247,12 @@
 - [x] Fix React key warning: changed bodyParagraphs.map key from numeric para.id to string `para-${para.id}` for proper list rendering
 
 - [x] Fix React key warning for duplicate keys: changed key from `para-${para.id}` to use index as fallback when ID is undefined (`para-${para.id}` or `para-index-${index}`)
+
+
+## Feedback Improvements (2026-01-29)
+- [x] Make scoring feedback messages score-specific (1/3, 2/3, 3/3 should have different messages)
+- [x] Update 1/3 feedback to be more constructive and encouraging
+- [x] Update 2/3 feedback to acknowledge progress and suggest improvements
+- [x] Update 3/3 feedback to celebrate excellence and provide advanced tips
+- [x] Update individual section feedback (hook, body, conclusion) to be section-specific
+- [x] Update overall essay feedback to be score-specific based on total score
