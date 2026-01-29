@@ -1,0 +1,17 @@
+{
+  "query": "SELECT * FROM saved_sessions WHERE saveCode = 'LM9TEX' LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2TWBtpcjgwG5hzA.777e824c9aa1 --database PNov5q4wXXhWS2SvGfFS6H --execute SELECT * FROM saved_sessions WHERE saveCode = 'LM9TEX' LIMIT 1;",
+  "rows": [
+    {
+      "id": "120001",
+      "saveCode": "LM9TEX",
+      "sessionData": "{\"bodyParagraphs\": [], \"conclusion\": \"\", \"hook\": \"\", \"sessionId\": \"session_1769674383090_5lbtie0i1\", \"studentName\": \"Student\", \"title\": \"\", \"topic\": \"\"}",
+      "expiresAt": "2026-02-28 08:13:32",
+      "createdAt": "2026-01-29 08:13:31"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tsaveCode\tsessionData\texpiresAt\tcreatedAt\n120001\tLM9TEX\t{\"bodyParagraphs\": [], \"conclusion\": \"\", \"hook\": \"\", \"sessionId\": \"session_1769674383090_5lbtie0i1\", \"studentName\": \"Student\", \"title\": \"\", \"topic\": \"\"}\t2026-02-28 08:13:32\t2026-01-29 08:13:31\n",
+  "stderr": "",
+  "execution_time_ms": 2130
+}

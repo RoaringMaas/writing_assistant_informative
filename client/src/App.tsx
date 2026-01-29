@@ -6,7 +6,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import WritingSession from "./pages/WritingSession";
-// import SessionHistory from "./pages/SessionHistory";
+// // import SessionHistory from "./pages/SessionHistory";
 import ArticleDisplay from "./pages/ArticleDisplay";
 import Certificate from "./pages/Certificate";
 

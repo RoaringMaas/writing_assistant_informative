@@ -231,3 +231,14 @@
 - [x] Fix saveSessionAnonymous validation error: all parameters (sessionId, studentName, topic, title, hook, bodyParagraphs, conclusion) are undefined
 
 - [x] Fix save code not being displayed in the save dialog - backend now generates and returns random 6-character code
+
+
+## Cleanup & Load My Work Feature (2026-01-29)
+- [x] Delete WritingSession_old.tsx to fix 49 TypeScript errors
+- [x] Add database schema for saving sessions with save codes
+- [x] Implement backend loadSessionByCode procedure
+- [x] Implement frontend Load My Work dialog and logic
+- [x] Test Load My Work functionality end-to-end
+
+## Bug Fixes (2026-01-29 - Continued)
+- [x] Fix invalid hook call in WritingSession: moved trpc.getWordBankAnonymous.useQuery() from inside useEffect to top level with enabled option

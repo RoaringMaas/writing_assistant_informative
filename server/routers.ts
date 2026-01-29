@@ -1,367 +1,232 @@
-import { COOKIE_NAME } from "@shared/const";
-import { getSessionCookieOptions } from "./_core/cookies";
-import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 
 // ============================================
 // COST-FREE VERSION - NO LLM CALLS
 // ============================================
-// This is a simplified router with all LLM features removed
-// Use static scoring and tips instead of AI-powered features
-// ============================================
 
-// Static scoring function (no LLM)
-function scoreContentStatic(
-  criterion: string,
-  content: string,
-  topic: string
-): { score: number; feedback: string; suggestions: string[] } {
-  const wordCount = content.trim().split(/\s+/).filter(w => w.length > 0).length;
+// Static scoring function (rule-based, no AI)
+function scoreContentStatic(section: string, content: string, topic: string): { score: number; feedback: string } {
+  const wordCount = content.trim().split(/\s+/).length;
   
-  let score = 2;
-  let feedback = "Good effort!";
-  let suggestions: string[] = [];
-
-  if (wordCount < 10) {
-    score = 1;
-    feedback = "Your writing is too short. Add more details!";
-    suggestions = ["Write at least 15-20 words for this section"];
-  } else if (wordCount > 150) {
-    score = 2;
-    feedback = "Great! You wrote a lot. Make sure it's all about the topic.";
-    suggestions = ["Check that every sentence is about your topic"];
+  if (wordCount < 5) {
+    return { score: 1, feedback: "Your writing is too short. Add more details!" };
+  } else if (wordCount < 15) {
+    return { score: 2, feedback: "Good start! Try to add more information." };
   } else {
-    score = 2;
-    feedback = "Nice work! Keep going!";
-    suggestions = ["Add more interesting details"];
+    return { score: 3, feedback: "Excellent work! You've written a strong section." };
   }
-
-  return { score, feedback, suggestions };
 }
 
-// Static word bank (no LLM)
-function getStaticWordBank(topic: string): string[] {
-  const wordBanks: Record<string, string[]> = {
-    butterflies: ["butterfly", "wings", "colorful", "fly", "caterpillar", "metamorphosis", "beautiful", "insect", "pattern", "delicate", "transform", "chrysalis", "emerge", "flutter", "migrate"],
-    animals: ["animal", "species", "habitat", "wild", "nature", "predator", "prey", "mammal", "bird", "reptile", "behavior", "survive", "adapt", "ecosystem", "endangered"],
-    plants: ["plant", "flower", "stem", "leaf", "root", "grow", "soil", "sunlight", "water", "seed", "bloom", "photosynthesis", "nature", "garden", "green"],
-    weather: ["weather", "rain", "cloud", "sun", "wind", "storm", "temperature", "forecast", "climate", "thunder", "lightning", "snow", "hail", "fog", "breeze"],
-    ocean: ["ocean", "water", "fish", "coral", "wave", "sea", "marine", "creature", "deep", "current", "reef", "whale", "dolphin", "shell", "tide"],
-    space: ["space", "star", "planet", "moon", "galaxy", "astronaut", "rocket", "universe", "orbit", "gravity", "telescope", "comet", "asteroid", "solar", "cosmic"],
-    dinosaurs: ["dinosaur", "fossil", "extinct", "prehistoric", "reptile", "roar", "massive", "ancient", "species", "paleontologist", "excavate", "skeleton", "Tyrannosaurus", "Triceratops", "Stegosaurus"],
-    default: ["interesting", "amazing", "beautiful", "important", "special", "different", "unique", "wonderful", "fascinating", "incredible", "remarkable", "outstanding", "excellent", "fantastic", "awesome"],
-  };
-
-  const topicLower = topic.toLowerCase();
-  for (const [key, words] of Object.entries(wordBanks)) {
-    if (topicLower.includes(key)) {
-      return words;
-    }
-  }
-  return wordBanks.default;
-}
-
-// Static tips (no LLM)
+// Static tips based on section
 function getStaticTips(section: string, topic: string): string[] {
   const tips: Record<string, string[]> = {
     hook: [
-      "Start with a question that makes readers curious!",
-      "Share an amazing fact about your topic.",
-      "Use words like 'Did you know...' or 'Imagine...' to grab attention.",
-      "Tell a short story or give an example.",
+      "Start with a question to grab your reader's attention!",
+      "Use an interesting fact or surprising statement.",
+      "Try starting with 'Did you know...' or 'Have you ever...'",
     ],
     body: [
-      "Add facts and details about your topic.",
-      "Use words like 'first,' 'next,' 'also,' and 'because' to connect ideas.",
-      "Explain WHY each fact is important.",
-      "Give examples to help readers understand.",
+      "Include specific details and examples.",
+      "Use transition words like 'First', 'Next', 'Also'.",
+      "Make sure each sentence relates to your topic.",
     ],
     conclusion: [
-      "Remind readers what your writing was about.",
-      "Tell them why your topic is important.",
-      "End with a question or interesting thought.",
-      "Use words like 'In conclusion...' or 'Remember...'",
+      "Summarize your main ideas.",
+      "End with a thought-provoking question or statement.",
+      "Remind the reader why your topic is important.",
     ],
   };
-
-  return tips[section] || tips.body;
+  
+  return tips[section] || [];
 }
 
-export const appRouter = router({
-  system: systemRouter,
+// Predefined word banks for different topics
+const wordBanks: Record<string, string[]> = {
+  butterflies: ["butterfly", "wings", "colorful", "fly", "caterpillar", "metamorphosis", "beautiful", "insect", "pattern", "delicate", "transform", "chrysalis", "emerge", "flutter", "migrate"],
+  animals: ["animal", "habitat", "species", "behavior", "predator", "prey", "survival", "adaptation", "instinct", "migration", "endangered", "ecosystem", "wildlife", "nature", "creature"],
+  plants: ["plant", "flower", "stem", "leaf", "root", "seed", "grow", "photosynthesis", "garden", "nature", "green", "bloom", "petal", "soil", "water"],
+  weather: ["weather", "rain", "snow", "wind", "cloud", "storm", "temperature", "forecast", "climate", "thunder", "lightning", "tornado", "hurricane", "season", "atmosphere"],
+  ocean: ["ocean", "water", "wave", "fish", "coral", "reef", "marine", "deep", "current", "tide", "shell", "creature", "whale", "dolphin", "underwater"],
+  space: ["space", "star", "planet", "moon", "galaxy", "universe", "astronaut", "rocket", "orbit", "gravity", "comet", "asteroid", "constellation", "solar", "cosmic"],
+  dinosaurs: ["dinosaur", "fossil", "extinct", "prehistoric", "reptile", "carnivore", "herbivore", "T-Rex", "Triceratops", "Stegosaurus", "Velociraptor", "ancient", "roamed", "era", "species"],
+};
+
+export const writingRouter = router({
+  // ============================================
+  // ANONYMOUS PROCEDURES (No Auth Required)
+  // ============================================
+
+  // Get word bank for a topic
+  getWordBankAnonymous: publicProcedure
+    .input(z.object({
+      topic: z.string(),
+    }))
+    .query(({ input }) => {
+      const topicLower = input.topic.toLowerCase();
+      const words = wordBanks[topicLower] || wordBanks.animals;
+      return { words };
+    }),
+
+  // Get help/tips for a section
+  getHelpAnonymous: publicProcedure
+    .input(z.object({
+      section: z.enum(["hook", "body", "conclusion"]),
+      topic: z.string(),
+    }))
+    .query(({ input }) => {
+      const tips = getStaticTips(input.section, input.topic);
+      return { tips };
+    }),
+
+  // Get intelligent feedback (static version)
+  getIntelligentFeedbackAnonymous: publicProcedure
+    .input(z.object({
+      section: z.enum(["hook", "body", "conclusion"]),
+      topic: z.string(),
+      content: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const scoring = scoreContentStatic(input.section, input.content, input.topic);
+      const tips = getStaticTips(input.section, input.topic);
+      
+      return {
+        score: scoring.score,
+        feedback: scoring.feedback,
+        tips: tips,
+      };
+    }),
+
+  // Save session with code
+  saveSessionAnonymous: publicProcedure
+    .input(z.object({
+      sessionId: z.string(),
+      studentName: z.string(),
+      topic: z.string(),
+      title: z.string(),
+      hook: z.string(),
+      bodyParagraphs: z.array(z.object({
+        topicSentence: z.string(),
+        supportingDetails: z.string(),
+      })),
+      conclusion: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const { saveSessionWithCode } = await import("./db");
+        const saveCode = await saveSessionWithCode({
+          sessionId: input.sessionId,
+          studentName: input.studentName,
+          topic: input.topic,
+          title: input.title,
+          hook: input.hook,
+          bodyParagraphs: input.bodyParagraphs,
+          conclusion: input.conclusion,
+        });
+        return { success: true, saveCode, message: "Session saved successfully!" };
+      } catch (error) {
+        console.error("Error saving session:", error);
+        return { success: false, message: "Failed to save session" };
+      }
+    }),
+
+  // Load session by code
+  loadSessionByCodeAnonymous: publicProcedure
+    .input(z.object({
+      saveCode: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const { loadSessionByCode } = await import("./db");
+        const sessionData = await loadSessionByCode(input.saveCode);
+        
+        if (!sessionData) {
+          return { success: false, message: "Save code not found or expired", data: null };
+        }
+        
+        return { success: true, message: "Session loaded successfully!", data: sessionData };
+      } catch (error) {
+        console.error("Error loading session:", error);
+        return { success: false, message: "Failed to load session", data: null };
+      }
+    }),
+
+  // Preview scoring for a section
+  previewScoreAnonymous: publicProcedure
+    .input(z.object({
+      topic: z.string(),
+      title: z.string(),
+      currentSection: z.enum(["hook", "body", "conclusion"]),
+      currentContent: z.string(),
+      totalWordCount: z.number(),
+    }))
+    .mutation(async ({ input }) => {
+      const scoring = scoreContentStatic(
+        input.currentSection,
+        input.currentContent,
+        input.topic
+      );
+      
+      const tips = getStaticTips(input.currentSection, input.topic);
+      
+      return {
+        score: scoring.score,
+        feedback: scoring.feedback,
+        tips: tips,
+      };
+    }),
+
+  // Perform overall assessment
+  performOverallAssessmentAnonymous: publicProcedure
+    .input(z.object({
+      topic: z.string(),
+      title: z.string(),
+      hook: z.string(),
+      bodyParagraphs: z.array(z.object({
+        topicSentence: z.string(),
+        supportingDetails: z.string(),
+      })),
+      conclusion: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      // Score each section
+      const titleScore = scoreContentStatic("hook", input.title, input.topic);
+      const hookScore = scoreContentStatic("hook", input.hook, input.topic);
+      
+      let bodyScore = 0;
+      input.bodyParagraphs.forEach(para => {
+        const score = scoreContentStatic("body", para.supportingDetails, input.topic);
+        bodyScore += score.score;
+      });
+      bodyScore = input.bodyParagraphs.length > 0 ? Math.round(bodyScore / input.bodyParagraphs.length) : 0;
+      
+      const conclusionScore = scoreContentStatic("conclusion", input.conclusion, input.topic);
+      
+      // Calculate total score (out of 18: 3 points each for 6 criteria)
+      const totalScore = titleScore.score + hookScore.score + bodyScore + conclusionScore.score;
+      
+      return {
+        scores: {
+          titleSubtitles: titleScore.score,
+          hook: hookScore.score,
+          relevantInfo: bodyScore,
+          transitions: 2, // Static score
+          accuracy: 2, // Static score
+          vocabulary: conclusionScore.score,
+        },
+        totalScore: totalScore,
+        feedback: "Great job! Keep practicing your writing skills!",
+      };
+    }),
   auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
-    logout: publicProcedure.mutation(({ ctx }) => {
-      const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      return { success: true } as const;
+    me: publicProcedure.query(async ({ ctx }) => {
+      return ctx.user || null;
+    }),
+    logout: publicProcedure.mutation(async ({ ctx }) => {
+      return { success: true };
     }),
   }),
-
-  writing: router({
-    // Preview score (static, no LLM)
-    previewScore: publicProcedure
-      .input(z.object({
-        topic: z.string(),
-        sectionType: z.enum(["hook", "body", "conclusion"]),
-        content: z.string(),
-        totalWordCount: z.number(),
-      }))
-      .mutation(async ({ input }) => {
-        const scoring = scoreContentStatic(
-          input.sectionType,
-          input.content,
-          input.topic
-        );
-        
-        const MIN_WORDS = 120;
-        const MAX_WORDS = 300;
-        
-        return {
-          score: scoring.score,
-          feedback: scoring.feedback,
-          suggestions: scoring.suggestions,
-          totalWordCount: input.totalWordCount,
-          minWords: MIN_WORDS,
-          maxWords: MAX_WORDS,
-        };
-      }),
-
-    // Get static tips (no LLM)
-    getHelp: publicProcedure
-      .input(z.object({
-        section: z.enum(["hook", "body", "conclusion"]),
-        topic: z.string(),
-      }))
-      .query(async ({ input }) => {
-        const tips = getStaticTips(input.section, input.topic);
-        return { tips };
-      }),
-
-    // Get static word bank (no LLM)
-    getWordBank: publicProcedure
-      .input(z.object({
-        topic: z.string(),
-      }))
-      .query(async ({ input }) => {
-        const words = getStaticWordBank(input.topic);
-        return { words };
-      }),
-
-    // Anonymous procedures (for non-logged-in users)
-    getWordBankAnonymous: publicProcedure
-      .input(z.object({
-        topic: z.string(),
-      }))
-      .mutation(async ({ input }) => {
-        const words = getStaticWordBank(input.topic);
-        return { words };
-      }),
-
-    getHelpAnonymous: publicProcedure
-      .input(z.object({
-        section: z.enum(["hook", "body", "conclusion"]),
-        topic: z.string(),
-      }))
-      .mutation(async ({ input }) => {
-        const tips = getStaticTips(input.section, input.topic);
-        return { tips };
-      }),
-
-    getIntelligentFeedbackAnonymous: publicProcedure
-      .input(z.object({
-        section: z.enum(["hook", "body", "conclusion"]),
-        topic: z.string(),
-        content: z.string(),
-      }))
-      .mutation(async ({ input }) => {
-        const scoring = scoreContentStatic(input.section, input.content, input.topic);
-        return {
-          feedback: scoring.feedback,
-          suggestions: scoring.suggestions,
-        };
-      }),
-
-    performOverallAssessmentAnonymous: publicProcedure
-      .input(z.object({
-        topic: z.string(),
-        title: z.string(),
-        hook: z.string(),
-        bodyParagraphs: z.array(z.object({
-          topicSentence: z.string(),
-          supportingDetails: z.string(),
-        })),
-        conclusion: z.string(),
-      }))
-      .mutation(async ({ input }) => {
-        const fullText = `${input.title} ${input.hook} ${input.bodyParagraphs.map(p => `${p.topicSentence} ${p.supportingDetails}`).join(" ")} ${input.conclusion}`;
-        const totalWordCount = fullText.trim().split(/\s+/).filter(w => w.length > 0).length;
-        
-        const MIN_WORDS = 120;
-        const MAX_WORDS = 300;
-        
-        const titleScore = input.title && input.title.length > 3 ? 2 : 1;
-        const hookScore = input.hook && input.hook.length > 10 ? 2 : 1;
-        const bodyScore = input.bodyParagraphs.length > 0 ? 2 : 1;
-        const conclusionScore = input.conclusion && input.conclusion.length > 10 ? 2 : 1;
-        
-        const scores = {
-          titleSubtitles: titleScore,
-          hook: hookScore,
-          relevantInfo: bodyScore,
-          transitions: bodyScore,
-          accuracy: 2,
-          vocabulary: 2,
-        };
-        
-        const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
-        
-        return {
-          scores,
-          feedback: {
-            titleSubtitles: input.title ? "Good title!" : "Add a title",
-            hook: input.hook ? "Nice hook!" : "Add an attention-grabbing opening",
-            relevantInfo: input.bodyParagraphs.length > 0 ? "Good details!" : "Add more information",
-            transitions: "Use words like 'first,' 'next,' and 'also'",
-            accuracy: "Check your spelling and punctuation",
-            vocabulary: "Use interesting words",
-          },
-          totalScore,
-          maxScore: 18,
-          strengths: [
-            input.bodyParagraphs.length > 1 ? "You wrote multiple paragraphs!" : "You started your writing!",
-            totalWordCount > 50 ? "You wrote a lot of details!" : "Keep writing!",
-          ],
-          areasForGrowth: [
-            totalWordCount < MIN_WORDS ? `Add more words to reach ${MIN_WORDS} total` : "",
-            input.bodyParagraphs.length < 2 ? "Add more body paragraphs" : "",
-            !input.conclusion ? "Write a conclusion" : "",
-          ].filter(Boolean),
-          overallFeedback: "Great work on your writing! Keep practicing!",
-          totalWordCount,
-          wordCountStatus: totalWordCount < MIN_WORDS 
-            ? `Your writing has ${totalWordCount} words. You need at least ${MIN_WORDS} words.`
-            : totalWordCount > MAX_WORDS
-            ? `Your writing has ${totalWordCount} words. Try to keep it under ${MAX_WORDS} words.`
-            : `Great job! Your writing has ${totalWordCount} words, which is perfect!`,
-        };
-      }),
-
-    saveSessionAnonymous: publicProcedure
-      .input(z.object({
-        sessionId: z.string(),
-        studentName: z.string(),
-        topic: z.string(),
-        title: z.string(),
-        hook: z.string(),
-        bodyParagraphs: z.array(z.object({
-          topicSentence: z.string(),
-          supportingDetails: z.string(),
-        })),
-        conclusion: z.string(),
-      }))
-      .mutation(async () => {
-        // Generate a random 6-character save code
-        const saveCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-        // In cost-free version, we don't save to database
-        // Just return success with the save code
-        return { success: true, saveCode, message: "Session saved locally only (cost-free version)" };
-      }),
-
-    previewScoreAnonymous: publicProcedure
-      .input(z.object({
-        topic: z.string(),
-        title: z.string(),
-        currentSection: z.enum(["hook", "body", "conclusion"]),
-        currentContent: z.string(),
-        totalWordCount: z.number(),
-      }))
-      .mutation(async ({ input }) => {
-        const scoring = scoreContentStatic(
-          input.currentSection,
-          input.currentContent,
-          input.topic
-        );
-        
-        const tips = getStaticTips(input.currentSection, input.topic);
-        
-        return {
-          score: scoring.score,
-          feedback: scoring.feedback,
-          suggestions: scoring.suggestions,
-          tips,
-          totalWordCount: input.totalWordCount,
-          minWords: 120,
-          maxWords: 300,
-        };
-      }),
-
-    // Get final assessment (static scoring)
-    getFinalAssessment: publicProcedure
-      .input(z.object({
-        topic: z.string(),
-        title: z.string(),
-        hook: z.string(),
-        bodyParagraphs: z.array(z.object({
-          topicSentence: z.string(),
-          supportingDetails: z.string(),
-        })),
-        conclusion: z.string(),
-      }))
-      .mutation(async ({ input }) => {
-        const fullText = `${input.title} ${input.hook} ${input.bodyParagraphs.map(p => `${p.topicSentence} ${p.supportingDetails}`).join(" ")} ${input.conclusion}`;
-        const totalWordCount = fullText.trim().split(/\s+/).filter(w => w.length > 0).length;
-        
-        const MIN_WORDS = 120;
-        const MAX_WORDS = 300;
-        
-        // Static scoring based on simple rules
-        const titleScore = input.title && input.title.length > 3 ? 2 : 1;
-        const hookScore = input.hook && input.hook.length > 10 ? 2 : 1;
-        const bodyScore = input.bodyParagraphs.length > 0 ? 2 : 1;
-        const conclusionScore = input.conclusion && input.conclusion.length > 10 ? 2 : 1;
-        
-        const scores = {
-          titleSubtitles: titleScore,
-          hook: hookScore,
-          relevantInfo: bodyScore,
-          transitions: bodyScore,
-          accuracy: 2,
-          vocabulary: 2,
-        };
-        
-        const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
-        
-        return {
-          scores,
-          feedback: {
-            titleSubtitles: input.title ? "Good title!" : "Add a title",
-            hook: input.hook ? "Nice hook!" : "Add an attention-grabbing opening",
-            relevantInfo: input.bodyParagraphs.length > 0 ? "Good details!" : "Add more information",
-            transitions: "Use words like 'first,' 'next,' and 'also'",
-            accuracy: "Check your spelling and punctuation",
-            vocabulary: "Use interesting words",
-          },
-          totalScore,
-          maxScore: 18,
-          strengths: [
-            input.bodyParagraphs.length > 1 ? "You wrote multiple paragraphs!" : "You started your writing!",
-            totalWordCount > 50 ? "You wrote a lot of details!" : "Keep writing!",
-          ],
-          areasForGrowth: [
-            totalWordCount < MIN_WORDS ? `Add more words to reach ${MIN_WORDS} total` : "",
-            input.bodyParagraphs.length < 2 ? "Add more body paragraphs" : "",
-            !input.conclusion ? "Write a conclusion" : "",
-          ].filter(Boolean),
-          overallFeedback: "Great work on your writing! Keep practicing!",
-          totalWordCount,
-          wordCountStatus: totalWordCount < MIN_WORDS 
-            ? `Your writing has ${totalWordCount} words. You need at least ${MIN_WORDS} words.`
-            : totalWordCount > MAX_WORDS
-            ? `Your writing has ${totalWordCount} words. Try to keep it under ${MAX_WORDS} words.`
-            : `Great job! Your writing has ${totalWordCount} words, which is perfect!`,
-        };
-      }),
-  }),
 });
+
+export const appRouter = writingRouter;
+export type AppRouter = typeof appRouter;

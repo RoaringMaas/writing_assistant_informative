@@ -1,0 +1,8 @@
+{
+  "query": "SELECT id, saveCode, sessionData, createdAt FROM savedSessions WHERE saveCode = 'LM9TEX';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2TWBtpcjgwG5hzA.777e824c9aa1 --database PNov5q4wXXhWS2SvGfFS6H --execute SELECT id, saveCode, sessionData, createdAt FROM savedSessions WHERE saveCode = 'LM9TEX';",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1146 (42S02) at line 1: Table 'pnov5q4wxxhws2svgffs6h.savedSessions' doesn't exist"
+  ]
+}

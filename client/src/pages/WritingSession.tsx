@@ -143,7 +143,7 @@ export default function WritingSession() {
   } | null>(null);
   
   // UI state
-  const [scaffoldingPrompts, setScaffoldingPrompts] = useState<string[]>([]);
+  const [tips, setScaffoldingPrompts] = useState<string[]>([]);
   const [showScaffolding, setShowScaffolding] = useState(false);
   const [showHelpDialog, setShowHelpDialog] = useState(false);
   const [helpContent, setHelpContent] = useState<{ tips: string[]; feedback?: string }>({ tips: [] });
@@ -154,16 +154,16 @@ export default function WritingSession() {
   const [copied, setCopied] = useState(false);
   
   // Backend mutations (still using tRPC for LLM scoring)
-  const previewScoreMutation = trpc.writing.previewScoreAnonymous.useMutation();
-  const intelligentFeedbackMutation = trpc.writing.getIntelligentFeedbackAnonymous.useMutation();
-  const wordBankMutation = trpc.writing.getWordBankAnonymous.useMutation();
-  const assessmentMutation = trpc.writing.performOverallAssessmentAnonymous.useMutation();
-  const saveSessionMutation = trpc.writing.saveSessionAnonymous.useMutation();
+  const previewScoreMutation = trpc.previewScoreAnonymous.useMutation();
+  const intelligentFeedbackMutation = trpc.getIntelligentFeedbackAnonymous.useMutation();
+  const wordBankQuery = trpc.getWordBankAnonymous.useQuery({ topic: "" }, { enabled: false });
+  const assessmentMutation = trpc.performOverallAssessmentAnonymous.useMutation();
+  const saveSessionMutation = trpc.saveSessionAnonymous.useMutation();
   
   // Load session from localStorage
   useEffect(() => {
     const loadedSession = getSession();
-    if (loadedSession && loadedSession.sessionId === sessionId) {
+    if (loadedSession) {
       setSession(loadedSession);
       setStudentName(loadedSession.studentName || "");
       setTopic(loadedSession.topic);
@@ -183,21 +183,20 @@ export default function WritingSession() {
       }
     }
     setLoading(false);
-  }, [sessionId, currentParagraphIndex]);
+  }, [currentParagraphIndex]);
   
   // Load word bank when topic is set
+  const { data: wordBankData } = trpc.getWordBankAnonymous.useQuery(
+    { topic: session?.topic || "" },
+    { enabled: !!(session?.topic && session.currentStep >= 2 && session.currentStep <= 4) }
+  );
+  
   useEffect(() => {
-    if (session?.topic && session.currentStep >= 2 && session.currentStep <= 4) {
-      wordBankMutation.mutate(
-        { topic: session.topic },
-        {
-          onSuccess: (data) => {
-            setWordBank(data.words || []);
-          },
-        }
-      );
+    if (wordBankData?.words) {
+      setWordBank(wordBankData.words);
     }
-  }, [session?.topic, session?.currentStep]);
+  }, [wordBankData?.words]);
+
   
   // Handle topic submission
   const handleTopicSubmit = () => {
@@ -255,12 +254,12 @@ export default function WritingSession() {
       setHookPreviewScore({
         score: scoreResult.score,
         feedback: scoreResult.feedback,
-        scaffolding: scoreResult.scaffoldingPrompts,
+        scaffolding: scoreResult.tips,
         aiFeedback,
       });
       
-      if (scoreResult.score === 1 && scoreResult.scaffoldingPrompts && scoreResult.scaffoldingPrompts.length > 0) {
-        setScaffoldingPrompts(scoreResult.scaffoldingPrompts);
+      if (scoreResult.score === 1 && scoreResult.tips && scoreResult.tips.length > 0) {
+        setScaffoldingPrompts(scoreResult.tips);
         setShowScaffolding(true);
       }
     } catch (error) {
@@ -323,12 +322,12 @@ export default function WritingSession() {
       setBodyPreviewScore({
         score: scoreResult.score,
         feedback: scoreResult.feedback,
-        scaffolding: scoreResult.scaffoldingPrompts,
+        scaffolding: scoreResult.tips,
         aiFeedback,
       });
       
-      if (scoreResult.score === 1 && scoreResult.scaffoldingPrompts && scoreResult.scaffoldingPrompts.length > 0) {
-        setScaffoldingPrompts(scoreResult.scaffoldingPrompts);
+      if (scoreResult.score === 1 && scoreResult.tips && scoreResult.tips.length > 0) {
+        setScaffoldingPrompts(scoreResult.tips);
         setShowScaffolding(true);
       }
     } catch (error) {
@@ -439,12 +438,12 @@ export default function WritingSession() {
       setConclusionPreviewScore({
         score: scoreResult.score,
         feedback: scoreResult.feedback,
-        scaffolding: scoreResult.scaffoldingPrompts,
+        scaffolding: scoreResult.tips,
         aiFeedback,
       });
       
-      if (scoreResult.score === 1 && scoreResult.scaffoldingPrompts && scoreResult.scaffoldingPrompts.length > 0) {
-        setScaffoldingPrompts(scoreResult.scaffoldingPrompts);
+      if (scoreResult.score === 1 && scoreResult.tips && scoreResult.tips.length > 0) {
+        setScaffoldingPrompts(scoreResult.tips);
         setShowScaffolding(true);
       }
     } catch (error) {
@@ -488,7 +487,7 @@ export default function WritingSession() {
         conclusion: session.conclusion,
       });
       
-      setSaveCode(result.saveCode);
+      setSaveCode(result.saveCode || null);
       setShowSaveDialog(true);
       toast.success("Your work has been saved!");
     } catch (error: any) {
@@ -555,21 +554,14 @@ export default function WritingSession() {
       });
       
       const updated = updateSession({
-        overallScores: {
-          titleSubtitles: result.scores.titleSubtitles,
-          hook: result.scores.hook,
-          relevantInfo: result.scores.relevantInfo,
-          transitions: result.scores.transitions,
-          accuracy: result.scores.accuracy,
-          vocabulary: result.scores.vocabulary,
-        },
+        overallScores: result.scores,
         overallFeedback: {
-          titleSubtitles: result.feedback.titleSubtitles,
-          hook: result.feedback.hook,
-          relevantInfo: result.feedback.relevantInfo,
-          transitions: result.feedback.transitions,
-          accuracy: result.feedback.accuracy,
-          vocabulary: result.feedback.vocabulary,
+          titleSubtitles: result.feedback,
+          hook: result.feedback,
+          relevantInfo: result.feedback,
+          transitions: result.feedback,
+          accuracy: result.feedback,
+          vocabulary: result.feedback,
         },
       });
       
@@ -715,7 +707,7 @@ export default function WritingSession() {
         {/* Scaffolding Prompt */}
         {showScaffolding && (
           <ScaffoldingPrompt
-            prompts={scaffoldingPrompts}
+            prompts={tips}
             onDismiss={() => setShowScaffolding(false)}
           />
         )}

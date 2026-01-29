@@ -262,6 +262,7 @@ export async function saveSessionWithCode(sessionData: any): Promise<string> {
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 30);
   
+  // sessionData field is json type, so pass object directly
   await db.insert(savedSessions).values({
     saveCode,
     sessionData,
@@ -294,6 +295,7 @@ export async function loadSessionByCode(saveCode: string) {
     return null;
   }
   
+  // sessionData is already parsed from json field
   return savedSession.sessionData;
 }
 
