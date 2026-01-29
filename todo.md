@@ -227,3 +227,5 @@
 - [x] Fix total score display showing "NaN/18" instead of actual score
 - [x] Fix sub-scores display showing thumbs down "/3" instead of actual numeric scores
 - [x] Fix assessment result mapping to access result.scores.* instead of result.*
+
+- [x] Fix saveSessionAnonymous validation error: all parameters (sessionId, studentName, topic, title, hook, bodyParagraphs, conclusion) are undefined

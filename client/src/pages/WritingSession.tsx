@@ -476,20 +476,16 @@ export default function WritingSession() {
     
     try {
       const result = await saveSessionMutation.mutateAsync({
-        sessionData: {
-          sessionId: session.sessionId,
-          topic: session.topic,
-          title: session.title,
-          currentStep: session.currentStep,
-          hook: session.hook,
-          bodyParagraphs: session.bodyParagraphs.map(p => ({
-            id: String(p.id),
-            topicSentence: p.topicSentence,
-            supportingDetails: p.supportingDetails,
-          })),
-          conclusion: session.conclusion,
-          overallScores: session.overallScores,
-        },
+        sessionId: session.sessionId,
+        studentName: session.studentName || "Student",
+        topic: session.topic,
+        title: session.title,
+        hook: session.hook,
+        bodyParagraphs: session.bodyParagraphs.map(p => ({
+          topicSentence: p.topicSentence,
+          supportingDetails: p.supportingDetails,
+        })),
+        conclusion: session.conclusion,
       });
       
       setSaveCode(result.saveCode);
