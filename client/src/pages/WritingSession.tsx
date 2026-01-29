@@ -242,16 +242,9 @@ export default function WritingSession() {
       let aiFeedback: string | undefined;
       try {
         const feedbackResult = await intelligentFeedbackMutation.mutateAsync({
+          section: "hook",
           topic: session.topic,
-          title: session.title,
-          hook: session.hook,
-          bodyParagraphs: session.bodyParagraphs.map(p => ({
-            topicSentence: p.topicSentence,
-            supportingDetails: p.supportingDetails,
-          })),
-          conclusion: session.conclusion,
-          currentSection: "hook",
-          currentContent: hook,
+          content: hook,
         });
         aiFeedback = typeof feedbackResult.feedback === 'string' ? feedbackResult.feedback : undefined;
       } catch (error) {
@@ -317,16 +310,9 @@ export default function WritingSession() {
       let aiFeedback: string | undefined;
       try {
         const feedbackResult = await intelligentFeedbackMutation.mutateAsync({
+          section: "body",
           topic: session.topic,
-          title: session.title,
-          hook: session.hook,
-          bodyParagraphs: session.bodyParagraphs.map(p => ({
-            topicSentence: p.topicSentence,
-            supportingDetails: p.supportingDetails,
-          })),
-          conclusion: session.conclusion,
-          currentSection: "body",
-          currentContent: currentParagraph.topicSentence + " " + currentParagraph.supportingDetails,
+          content: currentParagraph.topicSentence + " " + currentParagraph.supportingDetails,
         });
         aiFeedback = typeof feedbackResult.feedback === 'string' ? feedbackResult.feedback : undefined;
       } catch (error) {
@@ -440,16 +426,9 @@ export default function WritingSession() {
       let aiFeedback: string | undefined;
       try {
         const feedbackResult = await intelligentFeedbackMutation.mutateAsync({
+          section: "conclusion",
           topic: session.topic,
-          title: session.title,
-          hook: session.hook,
-          bodyParagraphs: session.bodyParagraphs.map(p => ({
-            topicSentence: p.topicSentence,
-            supportingDetails: p.supportingDetails,
-          })),
-          conclusion: session.conclusion,
-          currentSection: "conclusion",
-          currentContent: conclusion,
+          content: conclusion,
         });
         aiFeedback = typeof feedbackResult.feedback === 'string' ? feedbackResult.feedback : undefined;
       } catch (error) {
@@ -547,16 +526,9 @@ export default function WritingSession() {
     
     try {
       const result = await intelligentFeedbackMutation.mutateAsync({
+        section: currentSectionName as "hook" | "body" | "conclusion",
         topic: session.topic,
-        title: session.title,
-        hook: session.hook,
-        bodyParagraphs: session.bodyParagraphs.map(p => ({
-          topicSentence: p.topicSentence,
-          supportingDetails: p.supportingDetails,
-        })),
-        conclusion: session.conclusion,
-        currentSection: currentSectionName,
-        currentContent: currentSectionContent,
+        content: currentSectionContent,
       });
       
       setHelpContent({

@@ -218,3 +218,7 @@
 - [x] Test that scoring works without LLM calls
 - [x] Test word bank with static vocabulary
 - [x] Verify zero API costs
+
+
+## Bug Fixes (2026-01-29)
+- [x] Fix getIntelligentFeedbackAnonymous validation error: invalid section parameter and undefined content parameter
